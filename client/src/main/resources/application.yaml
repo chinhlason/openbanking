@@ -70,6 +70,11 @@ tsb:
       mode: self
       node-id: 1
       key-prefix: tsb:seq
+    crypto:
+      enabled: true
+      key-id: local-v1
+      encryption-key: ${TSB_CRYPTO_ENCRYPTION_KEY:bG9jYWwtZGVtby1lbmMta2V5LTEyMzQ1Njc4OTAxMjM=}
+      hash-key: ${TSB_CRYPTO_HASH_KEY:bG9jYWwtZGVtby1oYXNoLWtleS0xMjM0NTY3ODkwMTI=}
     logging:
       request:
         enabled: true
