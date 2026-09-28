@@ -1,0 +1,7 @@
+<included>
+    <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="app"/>
+    <springProperty scope="context" name="exceptionConversionWord" source="logging.exception-conversion-word" defaultValue="%wEx"/>
+
+    <property name="TSB_CONSOLE_LOG_PATTERN"
+              value="%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level app=${appName} traceId=%X{traceId:-} spanId=%X{spanId:-} [%thread] %logger{36} - %msg%n${exceptionConversionWord}"/>
+</included>

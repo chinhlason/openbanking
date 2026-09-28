@@ -1,0 +1,68 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: client2
+
+logging:
+  exception-conversion-word: "%ex{full}"
+  level:
+    root: INFO
+    vn.com.truongsonbank: DEBUG
+
+management:
+  endpoint:
+    health:
+      show-details: always
+  endpoints:
+    web:
+      exposure:
+        include: "health,metrics,prometheus"
+
+tsb:
+  shared:
+    tracing:
+      export-enabled: true
+      service-name: client2
+      otlp-endpoint: http://localhost:4317
+      export-timeout: 5s
+    kafka:
+      bootstrap-servers:
+        - localhost:9092
+      client-id: client2
+      group-id: client2
+      retry:
+        attempts: 3
+        backoff: 500ms
+      dlq:
+        enabled: true
+        suffix: .DLQ
+      consumer:
+        auto-offset-reset: latest
+    logging:
+      request:
+        enabled: true
+        include-headers: false
+        include-query-string: true
+        include-body: false
+        max-body-length: 4096
+        exclude-paths:
+          - /actuator/prometheus
+    protocol:
+      discovery:
+        enabled: true
+        provider: consul
+        consul-url: http://consul:8500
+        registration:
+          enabled: true
+          service-id: client2-http
+          service-name: client2
+          address: client2
+          port: 8082
+          health-path: /actuator/health
+          grpc:
+            enabled: true
+            service-id: client2-grpc
+            service-name: client2-grpc
+            port: 9092

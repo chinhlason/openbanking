@@ -1,0 +1,138 @@
+spring:
+  application:
+    name: client
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 0
+      timeout: 2s
+      connect-timeout: 2s
+      repositories:
+        enabled: false
+  datasource:
+    url: jdbc:mysql://tsb-mysql:3306/clientdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: client
+    password: clientpass
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+
+logging:
+  exception-conversion-word: "%ex{full}"
+  level:
+    root: INFO
+    vn.com.truongsonbank: DEBUG
+    org.springframework.web: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE
+    com.zaxxer.hikari: INFO
+
+management:
+  endpoint:
+    health:
+      show-details: always
+  endpoints:
+    web:
+      exposure:
+        include: "health,metrics,prometheus"
+
+tsb:
+  shared:
+    tracing:
+      export-enabled: true
+      service-name: client
+      otlp-endpoint: http://localhost:4317
+      export-timeout: 5s
+    kafka:
+      bootstrap-servers:
+        - localhost:9092
+      client-id: client
+      group-id: client
+      outbox:
+        enabled: true
+        relay-enabled: true
+        auto-create-table: true
+        table-name: tsb_outbox_event
+        batch-size: 10
+        poll-interval-ms: 1000
+        max-attempts: 5
+        retry-backoff: 10s
+      retry:
+        attempts: 3
+        backoff: 500ms
+      dlq:
+        enabled: true
+        suffix: .DLQ
+    sequence:
+      mode: self
+      node-id: 1
+      key-prefix: tsb:seq
+    logging:
+      request:
+        enabled: true
+        include-headers: false
+        include-query-string: true
+        include-body: true
+        max-body-length: 4096
+        exclude-paths:
+          - /actuator/prometheus
+      mask-rules:
+        username:
+          keys: "username"
+          keep-first: 1
+          keep-last: 1
+          mask-char: "-"
+        phone:
+          keys: "phone,phoneNumber,mobile,sdt"
+          keep-first: 2
+          keep-last: 4
+          mask-char: "*"
+        card:
+          keys: "pan,cardNumber"
+          keep-first: 6
+          keep-last: 4
+          mask-char: "*"
+    cache:
+      key-prefix: "client"
+      l1:
+        enabled: true
+        maximum-size: 1000
+        ttl: 10m
+        soft-ttl: 5m
+        null-ttl: 30s
+      l2:
+        enabled: true
+        ttl: 30m
+        soft-ttl: 10m
+        null-ttl: 30s
+      invalidation:
+        enabled: true
+        channel: tsb-cache-invalidation
+      tracking:
+        enabled: true
+        configure-notify-keyspace-events: true
+    protocol:
+      discovery:
+        enabled: true
+        provider: consul
+        consul-url: http://consul:8500
+        registration:
+          enabled: true
+          service-id: client-http
+          service-name: client
+          address: client
+          port: 8081
+          health-path: /actuator/health
+      downstreams:
+        client-self:
+          base-url: http://localhost:8081
+        client2:
+          service-id: client2
+          base-url: http://client2:8082
+        client2-grpc:
+          service-id: client2-grpc
+          target: client2:9092
+          response-timeout: 1s

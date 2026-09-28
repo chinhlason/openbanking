@@ -1,0 +1,11 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: "tsb-client"
+    metrics_path: "/actuator/prometheus"
+    static_configs:
+      - targets:
+          - "client:8081"
+          - "client2:8082"

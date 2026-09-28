@@ -1,0 +1,10 @@
+vn.com.truongsonbank.shared.response.ResponseWrapperAutoConfiguration
+vn.com.truongsonbank.shared.exception.TsbExceptionAutoConfiguration
+vn.com.truongsonbank.shared.validation.InputValidationAutoConfiguration
+vn.com.truongsonbank.shared.logging.LoggingAutoConfiguration
+vn.com.truongsonbank.shared.tracing.TracingAutoConfiguration
+vn.com.truongsonbank.shared.cache.CacheAutoConfiguration
+vn.com.truongsonbank.shared.protocol.TsbProtocolAutoConfiguration
+vn.com.truongsonbank.shared.kafka.KafkaAutoConfiguration
+vn.com.truongsonbank.shared.health.TsbHealthAutoConfiguration
+vn.com.truongsonbank.shared.sequence.SequenceAutoConfiguration

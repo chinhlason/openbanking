@@ -1,0 +1,30 @@
+{
+  "services": [
+    {
+      "id": "client2-http",
+      "name": "client2",
+      "address": "client2",
+      "port": 8082,
+      "checks": [
+        {
+          "http": "http://client2:8082/actuator/health",
+          "interval": "10s",
+          "timeout": "2s"
+        }
+      ]
+    },
+    {
+      "id": "client2-grpc",
+      "name": "client2-grpc",
+      "address": "client2",
+      "port": 9092,
+      "checks": [
+        {
+          "tcp": "client2:9092",
+          "interval": "10s",
+          "timeout": "2s"
+        }
+      ]
+    }
+  ]
+}
