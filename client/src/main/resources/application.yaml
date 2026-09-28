@@ -75,6 +75,21 @@ tsb:
       key-id: local-v1
       encryption-key: ${TSB_CRYPTO_ENCRYPTION_KEY:bG9jYWwtZGVtby1lbmMta2V5LTEyMzQ1Njc4OTAxMjM=}
       hash-key: ${TSB_CRYPTO_HASH_KEY:bG9jYWwtZGVtby1oYXNoLWtleS0xMjM0NTY3ODkwMTI=}
+    sharding:
+      enabled: true
+      auto-create-table: true
+      default-datasource: shard-0
+      datasources:
+        shard-0:
+          url: jdbc:mysql://tsb-mysql:3306/clientdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+          driver-class-name: com.mysql.cj.jdbc.Driver
+          username: client
+          password: clientpass
+        shard-1:
+          url: jdbc:mysql://tsb-mysql-shard1:3306/clientdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+          driver-class-name: com.mysql.cj.jdbc.Driver
+          username: client
+          password: clientpass
     logging:
       request:
         enabled: true

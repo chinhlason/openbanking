@@ -20,6 +20,8 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+      mysql-shard1:
+        condition: service_healthy
       kafka:
         condition: service_started
       redis:
@@ -121,6 +123,24 @@ services:
       timeout: 5s
       retries: 10
 
+  mysql-shard1:
+    image: mysql:8.4
+    container_name: tsb-mysql-shard1
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_DATABASE: clientdb
+      MYSQL_USER: client
+      MYSQL_PASSWORD: clientpass
+      MYSQL_ROOT_PASSWORD: rootpass
+    volumes:
+      - mysql-shard1-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -prootpass --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   redis:
     image: redis:7.4-alpine
     container_name: tsb-compose-redis
@@ -207,3 +227,4 @@ volumes:
   tempo-data:
   loki-data:
   mysql-data:
+  mysql-shard1-data:
