@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.ErrorResponseException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
@@ -49,6 +50,14 @@ class TsbExceptionHandler {
         log.error("Response Error occurred: code={}, message={}, traceId={}",
                 code, message, traceIdProvider.resolve(request), exception);
         return response(status, code, message, request);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    ResponseEntity<TsbResponse<Object>> handleUnreadableBody(HttpMessageNotReadableException exception, HttpServletRequest request) {
+        ErrorDescriptor error = CommonErrors.BAD_REQUEST;
+        log.warn("Bad request body: code={}, message={}, traceId={}",
+                error.code(), exception.getMessage(), traceIdProvider.resolve(request), exception);
+        return response(error.httpStatus(), error.code(), error.defaultMessage(), request);
     }
 
     @ExceptionHandler(Exception.class)

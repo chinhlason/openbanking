@@ -73,7 +73,7 @@ class RequestLoggingFilter extends OncePerRequestFilter {
             }
             filterChain.doFilter(requestToUse, response);
         } finally {
-            log.info(toJson(requestLog(requestToUse, response, startNanos)));
+            logByStatus(response.getStatus(), toJson(requestLog(requestToUse, response, startNanos)));
             if (previousTraceId == null) {
                 MDC.remove("traceId");
             } else {
@@ -84,6 +84,16 @@ class RequestLoggingFilter extends OncePerRequestFilter {
             } else {
                 MDC.put("trace_id", previousTrace_id);
             }
+        }
+    }
+
+    private void logByStatus(int status, String message) {
+        if (status >= 500) {
+            log.error(message);
+        } else if (status >= 400) {
+            log.warn(message);
+        } else {
+            log.info(message);
         }
     }
 

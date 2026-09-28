@@ -20,8 +20,8 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
-      mysql-shard1:
-        condition: service_healthy
+      common:
+        condition: service_started
       kafka:
         condition: service_started
       redis:
@@ -40,6 +40,33 @@ services:
       TSB_SHARED_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       TSB_SHARED_KAFKA_CLIENT_ID: client
       TSB_SHARED_KAFKA_GROUP_ID: client
+      TSB_CONFIG_SERVER_URL: http://common:8083
+      CONFIG_CLIENT_API_KEY: local-config-key
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      CLIENT_DB_NAME: clientdb
+
+  common:
+    build:
+      context: ../common
+    container_name: tsb-common
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: on-failure
+    ports:
+      - "8083:8083"
+    environment:
+      SERVER_PORT: 8083
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      COMMON_DB_NAME: commondb
+      SPRING_DATA_REDIS_HOST: redis
+      TSB_SHARED_TRACING_OTLP_ENDPOINT: http://otel-collector:4317
+      COMMON_CONFIG_ADMIN_API_KEY: local-admin-key
+      CLIENT_CONFIG_API_KEY: local-config-key
 
   client2:
     build:
@@ -117,24 +144,7 @@ services:
       MYSQL_ROOT_PASSWORD: rootpass
     volumes:
       - mysql-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -prootpass --silent"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
-  mysql-shard1:
-    image: mysql:8.4
-    container_name: tsb-mysql-shard1
-    ports:
-      - "3307:3306"
-    environment:
-      MYSQL_DATABASE: clientdb
-      MYSQL_USER: client
-      MYSQL_PASSWORD: clientpass
-      MYSQL_ROOT_PASSWORD: rootpass
-    volumes:
-      - mysql-shard1-data:/var/lib/mysql
+      - ../deployment/mysql/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -prootpass --silent"]
       interval: 10s
@@ -227,4 +237,3 @@ volumes:
   tempo-data:
   loki-data:
   mysql-data:
-  mysql-shard1-data:

@@ -1,3 +1,57 @@
 spring:
   application:
     name: common
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${COMMON_DB_NAME:commondb}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: client
+    password: clientpass
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+
+server:
+  port: 8083
+
+management:
+  endpoint:
+    health:
+      show-details: always
+  endpoints:
+    web:
+      exposure:
+        include: "health,metrics,prometheus"
+
+tsb:
+  shared:
+    kafka:
+      enabled: false
+    cache:
+      enabled: false
+    sequence:
+      enabled: false
+    tracing:
+      export-enabled: true
+      service-name: common
+      otlp-endpoint: http://localhost:4317
+      export-timeout: 5s
+    logging:
+      request:
+        enabled: true
+        include-headers: false
+        include-query-string: true
+        include-body: true
+        max-body-length: 4096
+    health:
+      enabled: false
+  common:
+    config:
+      admin-api-key: ${COMMON_CONFIG_ADMIN_API_KEY:local-admin-key}
+      bootstrap-clients:
+        client: ${CLIENT_CONFIG_API_KEY:local-config-key}
+      redis-channel: tsb:config:changed

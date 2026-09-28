@@ -11,7 +11,7 @@ spring:
       repositories:
         enabled: false
   datasource:
-    url: jdbc:mysql://tsb-mysql:3306/clientdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${CLIENT_DB_NAME:clientdb}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: client
     password: clientpass
@@ -40,6 +40,16 @@ management:
         include: "health,metrics,prometheus"
 
 tsb:
+  config:
+    enabled: true
+    server-url: http://localhost:8083
+    app: client
+    profile: local
+    api-key: ${CONFIG_CLIENT_API_KEY:local-config-key}
+    polling-interval: 30s
+    redis:
+      enabled: true
+      channel: tsb:config:changed
   shared:
     tracing:
       export-enabled: true
@@ -81,12 +91,12 @@ tsb:
       default-datasource: shard-0
       datasources:
         shard-0:
-          url: jdbc:mysql://tsb-mysql:3306/clientdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+          url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${CLIENT_DB_NAME:clientdb}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
           driver-class-name: com.mysql.cj.jdbc.Driver
           username: client
           password: clientpass
         shard-1:
-          url: jdbc:mysql://tsb-mysql-shard1:3306/clientdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+          url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${CLIENT_DB_NAME:clientdb}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
           driver-class-name: com.mysql.cj.jdbc.Driver
           username: client
           password: clientpass

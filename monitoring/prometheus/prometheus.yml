@@ -9,3 +9,4 @@ scrape_configs:
       - targets:
           - "client:8081"
           - "client2:8082"
+          - "common:8083"
