@@ -41,7 +41,9 @@ public class TsbHttpClientFactory {
                 .requestFactory(requestFactory)
                 .requestInterceptor(interceptor.forDownstream(downstream));
         String baseUrl = discoveryClient.httpBaseUrl(config.getServiceId());
-        if (baseUrl == null || baseUrl.isBlank()) {
+        if (baseUrl != null && !baseUrl.isBlank()) {
+            baseUrl = appendContextPath(baseUrl, config.getContextPath());
+        } else {
             baseUrl = config.getBaseUrl() == null ? config.getTarget() : config.getBaseUrl();
         }
         if (baseUrl != null && !baseUrl.isBlank()) {
@@ -81,5 +83,14 @@ public class TsbHttpClientFactory {
 
     private static Duration firstNonNull(Duration value, Duration fallback) {
         return value == null ? fallback : value;
+    }
+
+    private static String appendContextPath(String baseUrl, String contextPath) {
+        if (contextPath == null || contextPath.isBlank() || "/".equals(contextPath)) {
+            return baseUrl;
+        }
+        String base = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+        String path = contextPath.startsWith("/") ? contextPath : "/" + contextPath;
+        return base + path;
     }
 }

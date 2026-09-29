@@ -49,6 +49,7 @@ public class ProtocolProperties {
         private String baseUrl;
         private String target;
         private String serviceId;
+        private String contextPath;
         private String protocol = "http";
         private Map<String, Policy> operations = new LinkedHashMap<>();
 
@@ -74,6 +75,14 @@ public class ProtocolProperties {
 
         public void setServiceId(String serviceId) {
             this.serviceId = serviceId;
+        }
+
+        public String getContextPath() {
+            return contextPath;
+        }
+
+        public void setContextPath(String contextPath) {
+            this.contextPath = contextPath;
         }
 
         public String getProtocol() {

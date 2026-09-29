@@ -1,0 +1,137 @@
+package vn.com.truongsonbank.shared.security;
+
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.web.filter.OncePerRequestFilter;
+import vn.com.truongsonbank.shared.exception.TsbException;
+
+import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+public class InternalAuthVerificationFilter extends OncePerRequestFilter {
+    private final InternalAuthProperties properties;
+    private final InternalAuthSecretProvider secretProvider;
+    private final InternalAuthNonceStore nonceStore;
+
+    InternalAuthVerificationFilter(
+            InternalAuthProperties properties,
+            InternalAuthSecretProvider secretProvider,
+            InternalAuthNonceStore nonceStore) {
+        this.properties = properties;
+        this.secretProvider = secretProvider;
+        this.nonceStore = nonceStore;
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return properties.getExcludedPaths().stream().anyMatch(path::startsWith);
+    }
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
+        try {
+            AuthContextHolder.set(verify(request));
+            filterChain.doFilter(request, response);
+        } finally {
+            AuthContextHolder.clear();
+        }
+    }
+
+    private AuthContext verify(HttpServletRequest request) {
+        String timestamp = required(request, InternalAuthHeaders.TIMESTAMP);
+        String nonce = required(request, InternalAuthHeaders.NONCE);
+        String issuer = required(request, InternalAuthHeaders.ISSUER);
+        String signature = required(request, InternalAuthHeaders.SIGNATURE);
+        validateTimestamp(timestamp);
+        if (!nonceStore.markIfNew(issuer, nonce, secretProvider.maxSkew())) {
+            throw new TsbException(InternalAuthErrors.REPLAY);
+        }
+
+        Map<String, String> headers = signedHeaders(request);
+        String canonical = InternalAuthCanonicalizer.canonical(request.getMethod(), request.getRequestURI(), timestamp, nonce, headers);
+        String expected = InternalAuthCrypto.hmac(secretProvider.secret(), canonical);
+        if (!InternalAuthCrypto.equals(expected, signature)) {
+            throw new TsbException(InternalAuthErrors.INVALID_SIGNATURE);
+        }
+        return context(headers);
+    }
+
+    private void validateTimestamp(String timestamp) {
+        try {
+            Instant value = Instant.parse(timestamp);
+            Duration age = Duration.between(value, Instant.now()).abs();
+            if (age.compareTo(secretProvider.maxSkew()) > 0) {
+                throw new TsbException(InternalAuthErrors.INVALID_SIGNATURE);
+            }
+        } catch (TsbException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new TsbException(InternalAuthErrors.INVALID_SIGNATURE);
+        }
+    }
+
+    private String required(HttpServletRequest request, String header) {
+        String value = request.getHeader(header);
+        if (value == null || value.isBlank()) {
+            throw new TsbException(InternalAuthErrors.MISSING);
+        }
+        return value;
+    }
+
+    private Map<String, String> signedHeaders(HttpServletRequest request) {
+        Map<String, String> headers = new LinkedHashMap<>();
+        put(headers, request, InternalAuthHeaders.CHANNEL);
+        put(headers, request, InternalAuthHeaders.PRINCIPAL_ID);
+        put(headers, request, InternalAuthHeaders.USER_ID);
+        put(headers, request, InternalAuthHeaders.CUSTOMER_ID);
+        put(headers, request, InternalAuthHeaders.SESSION_ID);
+        put(headers, request, InternalAuthHeaders.DEVICE_ID);
+        put(headers, request, InternalAuthHeaders.TRUSTED_DEVICE);
+        put(headers, request, InternalAuthHeaders.ROLES);
+        put(headers, request, InternalAuthHeaders.SCOPES);
+        put(headers, request, InternalAuthHeaders.DPOP_VERIFIED);
+        put(headers, request, InternalAuthHeaders.DPOP_JKT);
+        put(headers, request, InternalAuthHeaders.DPOP_JTI);
+        return headers;
+    }
+
+    private void put(Map<String, String> headers, HttpServletRequest request, String header) {
+        String value = request.getHeader(header);
+        headers.put(header, value == null ? "" : value);
+    }
+
+    private AuthContext context(Map<String, String> headers) {
+        return new AuthContext(
+                headers.get(InternalAuthHeaders.CHANNEL),
+                headers.get(InternalAuthHeaders.PRINCIPAL_ID),
+                headers.get(InternalAuthHeaders.USER_ID),
+                headers.get(InternalAuthHeaders.CUSTOMER_ID),
+                headers.get(InternalAuthHeaders.SESSION_ID),
+                headers.get(InternalAuthHeaders.DEVICE_ID),
+                Boolean.parseBoolean(headers.get(InternalAuthHeaders.TRUSTED_DEVICE)),
+                csv(headers.get(InternalAuthHeaders.ROLES)),
+                csv(headers.get(InternalAuthHeaders.SCOPES)),
+                Boolean.parseBoolean(headers.get(InternalAuthHeaders.DPOP_VERIFIED)),
+                headers.get(InternalAuthHeaders.DPOP_JKT),
+                headers.get(InternalAuthHeaders.DPOP_JTI));
+    }
+
+    private List<String> csv(String value) {
+        if (value == null || value.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(value.split(","))
+                .map(String::trim)
+                .filter(item -> !item.isBlank())
+                .toList();
+    }
+}

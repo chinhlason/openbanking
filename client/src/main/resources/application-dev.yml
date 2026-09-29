@@ -1,0 +1,140 @@
+spring:
+  config:
+    activate:
+      on-profile: dev
+  application:
+    name: client
+
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:client}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    open-in-view: false
+
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      database: ${SPRING_DATA_REDIS_DATABASE:0}
+      timeout: 2s
+      connect-timeout: 2s
+      repositories:
+        enabled: false
+
+  kafka:
+    bootstrap-servers: ${TSB_SHARED_KAFKA_BOOTSTRAP_SERVERS:localhost:19092}
+    client-id: ${TSB_SHARED_KAFKA_CLIENT_ID:client}
+    consumer:
+      group-id: ${TSB_SHARED_KAFKA_GROUP_ID:client}
+
+server:
+  port: ${SERVER_PORT:8081}
+
+logging:
+  exception-conversion-word: "%ex{full}"
+  level:
+    root: INFO
+    vn.com.truongsonbank: DEBUG
+    org.springframework.web: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE
+    com.zaxxer.hikari: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,metrics,prometheus"
+
+tsb:
+  shared:
+    tracing:
+      export-enabled: true
+      service-name: client
+      otlp-endpoint: ${TSB_SHARED_TRACING_OTLP_ENDPOINT:http://localhost:4317}
+      export-timeout: 5s
+
+    kafka:
+      bootstrap-servers:
+        - ${TSB_SHARED_KAFKA_BOOTSTRAP_SERVERS:localhost:19092}
+      client-id: ${TSB_SHARED_KAFKA_CLIENT_ID:client}
+      group-id: ${TSB_SHARED_KAFKA_GROUP_ID:client}
+      outbox:
+        enabled: true
+        relay-enabled: true
+        auto-create-table: true
+        table-name: tsb_outbox_event
+        batch-size: 10
+        poll-interval-ms: 1000
+        max-attempts: 5
+        retry-backoff: 10s
+      retry:
+        attempts: 3
+        backoff: 500ms
+      dlq:
+        enabled: true
+        suffix: .DLQ
+
+    logging:
+      request:
+        enabled: true
+        include-headers: false
+        include-query-string: true
+        include-body: true
+        max-body-length: 4096
+        exclude-paths:
+          - /actuator/prometheus
+          - /actuator/health
+      mask-rules:
+        username:
+          keys: "username"
+          keep-first: 1
+          keep-last: 1
+          mask-char: "-"
+        phone:
+          keys: "phone,phoneNumber,mobile,sdt"
+          keep-first: 2
+          keep-last: 4
+          mask-char: "*"
+        card:
+          keys: "pan,cardNumber"
+          keep-first: 6
+          keep-last: 4
+          mask-char: "*"
+
+    protocol:
+      downstreams:
+        client2:
+          base-url: ${TSB_SHARED_PROTOCOL_DOWNSTREAMS_CLIENT2_BASE_URL:http://localhost:8082}
+          connect-timeout: 500ms
+          response-timeout: 2s
+          log:
+            enabled: true
+          retry:
+            attempts: 0
+          circuit-breaker:
+            enabled: true
+            minimum-calls: 20
+            sliding-window-size: 50
+            failure-rate-threshold: 60
+            open-duration: 30s
+            half-open-calls: 5
+          operations:
+            client2-echo:
+              response-timeout: 1s
+            client2-slow:
+              response-timeout: 500ms
+            client2-flaky:
+              response-timeout: 1s
+            client2-fail:
+              response-timeout: 1s
+
+        client2-grpc:
+          target: ${TSB_SHARED_PROTOCOL_DOWNSTREAMS_CLIENT2_GRPC_TARGET:localhost:9092}
+          response-timeout: 1s

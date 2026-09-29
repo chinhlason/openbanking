@@ -32,6 +32,9 @@ import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import vn.com.truongsonbank.shared.security.AuthContextHolder;
+import vn.com.truongsonbank.shared.security.AuthHeaderSigner;
+import vn.com.truongsonbank.shared.security.InternalAuthHeaders;
 
 class TsbProtocolClientHttpRequestInterceptor {
     static final String OPERATION_HEADER = "X-TSB-Operation";
@@ -41,16 +44,19 @@ class TsbProtocolClientHttpRequestInterceptor {
     private final TsbProtocolInstrumentation instrumentation;
     private final TsbCircuitBreakerRegistry circuitBreakers;
     private final ObjectProvider<Tracer> tracer;
+    private final ObjectProvider<AuthHeaderSigner> authHeaderSigner;
 
     TsbProtocolClientHttpRequestInterceptor(
             TsbProtocolPolicyResolver policyResolver,
             TsbProtocolInstrumentation instrumentation,
             TsbCircuitBreakerRegistry circuitBreakers,
-            ObjectProvider<Tracer> tracer) {
+            ObjectProvider<Tracer> tracer,
+            ObjectProvider<AuthHeaderSigner> authHeaderSigner) {
         this.policyResolver = policyResolver;
         this.instrumentation = instrumentation;
         this.circuitBreakers = circuitBreakers;
         this.tracer = tracer;
+        this.authHeaderSigner = authHeaderSigner;
     }
 
     ClientHttpRequestInterceptor forDownstream(String downstream) {
@@ -70,6 +76,7 @@ class TsbProtocolClientHttpRequestInterceptor {
             operation = request.getMethod().name() + " " + request.getURI().getPath();
         }
         propagateContext(request);
+        signInternalAuth(request);
         ResolvedProtocolPolicy policy = policyResolver.resolve(downstream, operation);
         CircuitBreaker circuitBreaker = null;
         if (policy.circuitBreaker().isEnabled()) {
@@ -172,6 +179,35 @@ class TsbProtocolClientHttpRequestInterceptor {
         if (idempotencyKey != null && !request.getHeaders().containsHeader("Idempotency-Key")) {
             request.getHeaders().set("Idempotency-Key", idempotencyKey);
         }
+    }
+
+    private void signInternalAuth(HttpRequest request) {
+        AuthHeaderSigner signer = authHeaderSigner.getIfAvailable();
+        if (signer == null || AuthContextHolder.current().isEmpty()) {
+            return;
+        }
+        stripInternalHeaders(request.getHeaders());
+        signer.signedHeaders(request.getMethod().name(), request.getURI().getRawPath(), AuthContextHolder.current().orElseThrow())
+                .forEach(request.getHeaders()::set);
+    }
+
+    private void stripInternalHeaders(HttpHeaders headers) {
+        headers.remove(InternalAuthHeaders.CHANNEL);
+        headers.remove(InternalAuthHeaders.PRINCIPAL_ID);
+        headers.remove(InternalAuthHeaders.USER_ID);
+        headers.remove(InternalAuthHeaders.CUSTOMER_ID);
+        headers.remove(InternalAuthHeaders.SESSION_ID);
+        headers.remove(InternalAuthHeaders.DEVICE_ID);
+        headers.remove(InternalAuthHeaders.TRUSTED_DEVICE);
+        headers.remove(InternalAuthHeaders.ROLES);
+        headers.remove(InternalAuthHeaders.SCOPES);
+        headers.remove(InternalAuthHeaders.DPOP_VERIFIED);
+        headers.remove(InternalAuthHeaders.DPOP_JKT);
+        headers.remove(InternalAuthHeaders.DPOP_JTI);
+        headers.remove(InternalAuthHeaders.TIMESTAMP);
+        headers.remove(InternalAuthHeaders.NONCE);
+        headers.remove(InternalAuthHeaders.ISSUER);
+        headers.remove(InternalAuthHeaders.SIGNATURE);
     }
 
     private String inboundHeader(String name) {

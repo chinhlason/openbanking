@@ -36,6 +36,18 @@
         </dependency>
 
         <dependency>
+            <groupId>vn.com.truongsonbank</groupId>
+            <artifactId>sharedpackage</artifactId>
+            <version>0.0.38-SNAPSHOT</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-gateway-server-webmvc</artifactId>
+            <version>5.0.3</version>
+        </dependency>
+
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc-test</artifactId>
             <scope>test</scope>

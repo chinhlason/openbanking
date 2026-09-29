@@ -35,6 +35,28 @@ class CommonConfigDemoController {
     }
 
     @ResponseWrapper
+    @GetMapping("/shared-test/config/snapshot")
+    Map<String, Object> snapshot() {
+        CommonConfigSnapshot snapshot = configClient.snapshot();
+        if (snapshot == null) {
+            return Map.of("loaded", false);
+        }
+        return Map.of(
+                "loaded", true,
+                "app", snapshot.app(),
+                "profile", snapshot.profile(),
+                "version", snapshot.version(),
+                "flat", snapshot.flat(),
+                "nested", snapshot.nested());
+    }
+
+    @ResponseWrapper
+    @GetMapping("/shared-test/config/stacktrace")
+    Map<String, Object> stacktrace() {
+        throw new IllegalStateException("Loki stacktrace test from client config demo");
+    }
+
+    @ResponseWrapper
     @PostMapping("/shared-test/config/reload")
     Map<String, Object> reload() {
         configClient.reload("manual", false);

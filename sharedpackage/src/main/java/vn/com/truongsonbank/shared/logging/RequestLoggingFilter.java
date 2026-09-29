@@ -66,14 +66,18 @@ class RequestLoggingFilter extends OncePerRequestFilter {
         String traceId = traceIdProvider.resolve(requestToUse);
         String previousTraceId = MDC.get("traceId");
         String previousTrace_id = MDC.get("trace_id");
+        Throwable requestException = null;
         try {
             if (traceId != null && !traceId.isBlank()) {
                 MDC.put("traceId", traceId);
                 MDC.put("trace_id", traceId);
             }
             filterChain.doFilter(requestToUse, response);
+        } catch (Throwable ex) {
+            requestException = ex;
+            throw ex;
         } finally {
-            logByStatus(response.getStatus(), toJson(requestLog(requestToUse, response, startNanos)));
+            logByStatus(response.getStatus(), toJson(requestLog(requestToUse, response, startNanos)), requestException);
             if (previousTraceId == null) {
                 MDC.remove("traceId");
             } else {
@@ -87,13 +91,13 @@ class RequestLoggingFilter extends OncePerRequestFilter {
         }
     }
 
-    private void logByStatus(int status, String message) {
+    private void logByStatus(int status, String message, Throwable throwable) {
         if (status >= 500) {
-            log.error(message);
+            log.error(message, throwable);
         } else if (status >= 400) {
-            log.warn(message);
+            log.warn(message, throwable);
         } else {
-            log.info(message);
+            log.info(message, throwable);
         }
     }
 

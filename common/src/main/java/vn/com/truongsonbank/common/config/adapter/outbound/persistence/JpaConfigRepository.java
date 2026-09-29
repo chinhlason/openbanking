@@ -21,13 +21,16 @@ class JpaConfigRepository implements ConfigRepository {
     private final SpringDataConfigEntryRepository entries;
     private final SpringDataConfigClientRepository clients;
     private final SpringDataConfigPublishEventRepository events;
+    private final SpringDataConfigAuditLogRepository auditLogs;
 
     JpaConfigRepository(SpringDataConfigEntryRepository entries,
                         SpringDataConfigClientRepository clients,
-                        SpringDataConfigPublishEventRepository events) {
+                        SpringDataConfigPublishEventRepository events,
+                        SpringDataConfigAuditLogRepository auditLogs) {
         this.entries = entries;
         this.clients = clients;
         this.events = events;
+        this.auditLogs = auditLogs;
     }
 
     @Override
@@ -36,6 +39,7 @@ class JpaConfigRepository implements ConfigRepository {
         entries.saveAll(values.entrySet().stream()
                 .map(entry -> ConfigEntryEntity.draft(app, profile, entry.getKey(), entry.getValue().value(), entry.getValue().type()))
                 .toList());
+        auditLogs.save(new ConfigAuditLogEntity(app, profile, "SAVE_DRAFT", 0, jsonArray(values.keySet().stream().toList())));
     }
 
     @Override
@@ -78,6 +82,25 @@ class JpaConfigRepository implements ConfigRepository {
             entries.deleteByAppAndProfileAndStatusAndKeyIn(app, profile, ConfigStatus.DRAFT, keys);
         }
         events.save(new ConfigPublishEventEntity(app, profile, nextVersion, jsonArray(keys), publishedAt));
+        auditLogs.save(new ConfigAuditLogEntity(app, profile, "PUBLISH", nextVersion, jsonArray(keys)));
+        return new ConfigPublishEvent(app, profile, nextVersion, keys, publishedAt);
+    }
+
+    @Override
+    public ConfigPublishEvent rollback(String app, String profile, long version) {
+        List<ConfigEntryEntity> oldSnapshot = entries.findByAppAndProfileAndStatusAndVersionOrderByKey(
+                app, profile, ConfigStatus.PUBLISHED, version);
+        if (oldSnapshot.isEmpty()) {
+            throw new TsbException(ConfigErrors.VERSION_NOT_FOUND, version);
+        }
+        long nextVersion = entries.maxVersion(app, profile, ConfigStatus.PUBLISHED) + 1;
+        Instant publishedAt = Instant.now();
+        entries.saveAll(oldSnapshot.stream()
+                .map(entry -> ConfigEntryEntity.published(entry, nextVersion, publishedAt))
+                .toList());
+        List<String> keys = oldSnapshot.stream().map(ConfigEntryEntity::getKey).toList();
+        events.save(new ConfigPublishEventEntity(app, profile, nextVersion, jsonArray(keys), publishedAt));
+        auditLogs.save(new ConfigAuditLogEntity(app, profile, "ROLLBACK", nextVersion, jsonArray(keys)));
         return new ConfigPublishEvent(app, profile, nextVersion, keys, publishedAt);
     }
 
@@ -90,6 +113,15 @@ class JpaConfigRepository implements ConfigRepository {
         return latestPublishedEntities(app, profile)
                 .stream()
                 .map(ConfigEntryEntity::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<AuditLog> audit(String app, String profile) {
+        return auditLogs.findTop100ByAppAndProfileOrderByCreatedAtDesc(app, profile)
+                .stream()
+                .map(log -> new AuditLog(log.getId(), log.getApp(), log.getProfile(), log.getAction(),
+                        log.getVersion(), log.getKeysJson(), log.getCreatedAt()))
                 .toList();
     }
 

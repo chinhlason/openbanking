@@ -13,6 +13,7 @@ import vn.com.truongsonbank.common.config.domain.model.ConfigErrors;
 import vn.com.truongsonbank.common.config.domain.model.ConfigEntry;
 import vn.com.truongsonbank.common.config.domain.model.ConfigPublishEvent;
 import vn.com.truongsonbank.common.config.domain.model.ConfigSnapshot;
+import vn.com.truongsonbank.common.config.domain.port.ConfigRepository;
 import vn.com.truongsonbank.common.config.infrastructure.config.ConfigServerProperties;
 import vn.com.truongsonbank.shared.exception.TsbException;
 import vn.com.truongsonbank.shared.response.ResponseWrapper;
@@ -78,6 +79,23 @@ public class ConfigController {
                                    @RequestBody PublishConfigRequest request) {
         assertAdmin(adminKey);
         return configService.publish(app, profile, request.keys());
+    }
+
+    @PostMapping("/config/v1/apps/{app}/profiles/{profile}/rollback/{version}")
+    ConfigPublishEvent rollback(@PathVariable String app,
+                                @PathVariable String profile,
+                                @PathVariable long version,
+                                @RequestHeader("X-Config-Admin-Key") String adminKey) {
+        assertAdmin(adminKey);
+        return configService.rollback(app, profile, version);
+    }
+
+    @GetMapping("/config/v1/apps/{app}/profiles/{profile}/audit")
+    List<ConfigRepository.AuditLog> audit(@PathVariable String app,
+                                          @PathVariable String profile,
+                                          @RequestHeader("X-Config-Admin-Key") String adminKey) {
+        assertAdmin(adminKey);
+        return configService.audit(app, profile);
     }
 
     private void assertAdmin(String adminKey) {

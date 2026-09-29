@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>vn.com.truongsonbank</groupId>
 	<artifactId>sharedpackage</artifactId>
-	<version>0.0.31-SNAPSHOT</version>
+	<version>0.0.38-SNAPSHOT</version>
 	<name>sharedpackage</name>
 	<description>sharedpackage</description>
 	<url/>
@@ -28,6 +28,7 @@
 	</scm>
 	<properties>
 		<java.version>25</java.version>
+		<springdoc.version>3.1.1</springdoc.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -38,6 +39,12 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>${springdoc.version}</version>
 		</dependency>
 
 		<dependency>

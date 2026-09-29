@@ -14,10 +14,13 @@ import jakarta.persistence.Table;
 import vn.com.truongsonbank.common.config.domain.model.ConfigEntry;
 import vn.com.truongsonbank.common.config.domain.model.ConfigStatus;
 import vn.com.truongsonbank.common.config.domain.model.ConfigValueType;
+import vn.com.truongsonbank.shared.crypto.EncryptedEntity;
+import vn.com.truongsonbank.shared.crypto.EncryptedField;
 
 import java.time.Instant;
 
 @Entity
+@EncryptedEntity
 @Table(name = "config_entry", indexes = {
         @Index(name = "idx_config_entry_lookup", columnList = "app,profile,status,version")
 })
@@ -31,6 +34,7 @@ class ConfigEntryEntity {
     private String profile;
     @Column(name = "config_key", nullable = false, length = 512)
     private String key;
+    @EncryptedField
     @Column(name = "config_value", nullable = false, columnDefinition = "text")
     private String value;
     @Enumerated(EnumType.STRING)

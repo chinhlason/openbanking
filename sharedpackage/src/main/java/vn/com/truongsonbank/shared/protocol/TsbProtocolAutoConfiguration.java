@@ -13,6 +13,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
 import org.springframework.web.client.RestClient;
+import vn.com.truongsonbank.shared.security.AuthHeaderSigner;
 
 @AutoConfiguration
 @ConditionalOnClass(RestClient.class)
@@ -59,8 +60,9 @@ public class TsbProtocolAutoConfiguration {
             TsbProtocolPolicyResolver policyResolver,
             TsbProtocolInstrumentation instrumentation,
             TsbCircuitBreakerRegistry circuitBreakers,
-            ObjectProvider<Tracer> tracer) {
-        return new TsbProtocolClientHttpRequestInterceptor(policyResolver, instrumentation, circuitBreakers, tracer);
+            ObjectProvider<Tracer> tracer,
+            ObjectProvider<AuthHeaderSigner> authHeaderSigner) {
+        return new TsbProtocolClientHttpRequestInterceptor(policyResolver, instrumentation, circuitBreakers, tracer, authHeaderSigner);
     }
 
     @Bean

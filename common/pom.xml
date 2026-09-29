@@ -48,7 +48,7 @@
 		<dependency>
 			<groupId>vn.com.truongsonbank</groupId>
 			<artifactId>sharedpackage</artifactId>
-			<version>0.0.31-SNAPSHOT</version>
+			<version>0.0.38-SNAPSHOT</version>
 		</dependency>
 
 		<dependency>

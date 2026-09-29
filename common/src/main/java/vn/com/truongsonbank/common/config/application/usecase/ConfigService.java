@@ -16,11 +16,13 @@ import vn.com.truongsonbank.shared.exception.TsbException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 @Service
 public class ConfigService {
-    private static final List<String> SECRET_KEY_PARTS = List.of(
-            "password", "secret", "token", "api-key", "apikey", "private-key", "credential");
+    private static final Pattern NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9._-]{1,128}$");
+    private static final Pattern KEY_PATTERN = Pattern.compile("^[a-zA-Z0-9._-]{1,512}$");
+    private static final int MAX_VALUE_LENGTH = 16_384;
 
     private final ConfigRepository repository;
     private final ConfigEventPublisher eventPublisher;
@@ -34,6 +36,7 @@ public class ConfigService {
 
     @Transactional
     public void saveDraft(String app, String profile, Map<String, Object> entries) {
+        validateAppProfile(app, profile);
         if (entries == null || entries.isEmpty()) {
             throw new TsbException(ConfigErrors.ENTRIES_REQUIRED);
         }
@@ -43,11 +46,13 @@ public class ConfigService {
     }
 
     public List<ConfigEntry> draft(String app, String profile) {
+        validateAppProfile(app, profile);
         return repository.draft(app, profile);
     }
 
     @Transactional
     public ConfigPublishEvent publish(String app, String profile) {
+        validateAppProfile(app, profile);
         ConfigPublishEvent event = repository.publish(app, profile);
         eventPublisher.publish(event);
         return event;
@@ -55,6 +60,7 @@ public class ConfigService {
 
     @Transactional
     public ConfigPublishEvent publish(String app, String profile, List<String> keys) {
+        validateAppProfile(app, profile);
         if (keys == null || keys.isEmpty()) {
             throw new TsbException(ConfigErrors.PUBLISH_KEYS_REQUIRED);
         }
@@ -66,7 +72,21 @@ public class ConfigService {
         return event;
     }
 
+    @Transactional
+    public ConfigPublishEvent rollback(String app, String profile, long version) {
+        validateAppProfile(app, profile);
+        ConfigPublishEvent event = repository.rollback(app, profile, version);
+        eventPublisher.publish(event);
+        return event;
+    }
+
+    public List<ConfigRepository.AuditLog> audit(String app, String profile) {
+        validateAppProfile(app, profile);
+        return repository.audit(app, profile);
+    }
+
     public ConfigSnapshot snapshot(String app, String profile, String apiKey) {
+        validateAppProfile(app, profile);
         if (!repository.isClientAuthorized(app, apiKey)) {
             throw new TsbException(ConfigErrors.INVALID_API_KEY);
         }
@@ -93,13 +113,19 @@ public class ConfigService {
         if (key == null || key.isBlank()) {
             throw new TsbException(ConfigErrors.KEY_REQUIRED);
         }
-        String lowered = key.toLowerCase();
-        for (String secretPart : SECRET_KEY_PARTS) {
-            if (lowered.contains(secretPart)) {
-                throw new TsbException(ConfigErrors.SECRET_KEY_NOT_ALLOWED, key);
-            }
+        if (!KEY_PATTERN.matcher(key).matches() || key.contains("..")) {
+            throw new TsbException(ConfigErrors.KEY_INVALID, key);
         }
         return key;
+    }
+
+    private void validateAppProfile(String app, String profile) {
+        if (app == null || !NAME_PATTERN.matcher(app).matches()) {
+            throw new TsbException(ConfigErrors.APP_INVALID);
+        }
+        if (profile == null || !NAME_PATTERN.matcher(profile).matches()) {
+            throw new TsbException(ConfigErrors.PROFILE_INVALID);
+        }
     }
 
     private ConfigRepository.TypedValue typedValue(Object value) {
@@ -114,12 +140,19 @@ public class ConfigService {
         }
         if (value instanceof Map<?, ?> || value instanceof List<?>) {
             try {
-                return new ConfigRepository.TypedValue(objectMapper.writeValueAsString(value), ConfigValueType.JSON);
+                return typedString(objectMapper.writeValueAsString(value), ConfigValueType.JSON);
             } catch (JsonProcessingException ex) {
                 throw new TsbException(ConfigErrors.JSON_VALUE_INVALID, ex);
             }
         }
-        return new ConfigRepository.TypedValue(String.valueOf(value), ConfigValueType.STRING);
+        return typedString(String.valueOf(value), ConfigValueType.STRING);
+    }
+
+    private ConfigRepository.TypedValue typedString(String value, ConfigValueType type) {
+        if (value.length() > MAX_VALUE_LENGTH) {
+            throw new TsbException(ConfigErrors.VALUE_TOO_LONG, MAX_VALUE_LENGTH);
+        }
+        return new ConfigRepository.TypedValue(value, type);
     }
 
     private Map<String, Object> nested(Map<String, String> flat) {

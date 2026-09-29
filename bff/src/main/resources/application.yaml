@@ -1,0 +1,80 @@
+spring:
+  application:
+    name: bff
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  cloud:
+    gateway:
+      server:
+        webmvc:
+          routes:
+            - id: client
+              uri: ${BFF_ROUTE_CLIENT_URI:http://localhost:8081}
+              predicates:
+                - Path=/client/**
+              filters:
+                - StripPrefix=3
+            - id: common
+              uri: ${BFF_ROUTE_COMMON_URI:http://localhost:8083}
+              predicates:
+                - Path=/common/**
+              filters:
+                - StripPrefix=3
+                - PrefixPath=/common/api
+
+server:
+  port: 8080
+  servlet:
+    context-path: /bff/api
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,metrics,prometheus"
+
+tsb:
+  shared:
+    common-config:
+      enabled: false
+      app: bff
+      profile: local
+      base-url: http://localhost:8083/common/api
+      api-key: ${BFF_CONFIG_API_KEY:local-config-key}
+    internal-auth:
+      enabled: true
+      signer-enabled: true
+      verifier-enabled: false
+      hmac-secret: ${TSB_INTERNAL_AUTH_HMAC_SECRET:local-dev-secret}
+      issuer: bff
+      max-skew: 60s
+    kafka:
+      enabled: false
+    cache:
+      enabled: false
+    sequence:
+      enabled: false
+    protocol:
+      discovery:
+        enabled: true
+        provider: consul
+        consul-url: http://localhost:8500
+      downstreams:
+        common:
+          service-id: common
+          context-path: /common/api
+          base-url: http://localhost:8083/common/api
+        auth:
+          service-id: auth
+          context-path: /auth/api
+          base-url: http://localhost:8084/auth/api
+        core:
+          service-id: core
+          context-path: /core/api
+          base-url: http://localhost:8085/core/api
+        client:
+          service-id: client
+          context-path: /client/api
+          base-url: http://localhost:8081/client/api

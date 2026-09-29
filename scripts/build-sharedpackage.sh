@@ -6,7 +6,21 @@ SHARED_POM="$ROOT_DIR/sharedpackage/pom.xml"
 CLIENT_POM="$ROOT_DIR/client/pom.xml"
 
 current_version="$(perl -0ne 'print $1 if /<artifactId>sharedpackage<\/artifactId>\s*<version>([^<]+)<\/version>/' "$SHARED_POM")"
-new_version="${1:-}"
+
+skip_tests=false
+new_version=""
+for arg in "$@"; do
+  case "$arg" in
+    --skip-tests)
+      skip_tests=true
+      ;;
+    *)
+      if [[ -z "$new_version" ]]; then
+        new_version="$arg"
+      fi
+      ;;
+  esac
+done
 
 if [[ -z "$new_version" ]]; then
   base="${current_version%-SNAPSHOT}"
@@ -15,7 +29,13 @@ if [[ -z "$new_version" ]]; then
 fi
 
 perl -0pi -e 's|(<artifactId>sharedpackage</artifactId>\s*<version>)[^<]+|${1}'"$new_version"'|' "$SHARED_POM"
-"$ROOT_DIR/sharedpackage/mvnw" -f "$SHARED_POM" clean install
+
+mvn_args=(clean install)
+if [[ "$skip_tests" == true ]]; then
+  mvn_args+=("-DskipTests")
+fi
+
+"$ROOT_DIR/sharedpackage/mvnw" -f "$SHARED_POM" "${mvn_args[@]}"
 
 if grep -q "<artifactId>sharedpackage</artifactId>" "$CLIENT_POM"; then
   perl -0pi -e 's|(<artifactId>sharedpackage</artifactId>\s*<version>)[^<]+|${1}'"$new_version"'|' "$CLIENT_POM"

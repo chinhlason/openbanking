@@ -16,12 +16,19 @@ public interface ConfigRepository {
 
     ConfigPublishEvent publish(String app, String profile, List<String> keys);
 
+    ConfigPublishEvent rollback(String app, String profile, long version);
+
     List<ConfigEntry> latestPublished(String app, String profile);
+
+    List<AuditLog> audit(String app, String profile);
 
     boolean isClientAuthorized(String app, String apiKey);
 
     void ensureClient(String app, String apiKey);
 
     record TypedValue(String value, ConfigValueType type) {
+    }
+
+    record AuditLog(Long id, String app, String profile, String action, long version, String keysJson, java.time.Instant createdAt) {
     }
 }
