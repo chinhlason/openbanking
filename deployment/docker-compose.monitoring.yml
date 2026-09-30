@@ -40,7 +40,7 @@ services:
       TSB_SHARED_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       TSB_SHARED_KAFKA_CLIENT_ID: client
       TSB_SHARED_KAFKA_GROUP_ID: client
-      TSB_CONFIG_SERVER_URL: http://common:8083
+      TSB_CONFIG_SERVER_URL: http://common:8083/common/api
       CONFIG_CLIENT_API_KEY: local-config-key
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
@@ -68,11 +68,75 @@ services:
       COMMON_CONFIG_ADMIN_API_KEY: local-admin-key
       CLIENT_CONFIG_API_KEY: local-config-key
 
+  keycloak:
+    build:
+      context: ../keycloak-biometric-provider
+    container_name: tsb-keycloak
+    command:
+      - start-dev
+      - --features=dpop
+      - --http-enabled=true
+      - --hostname-strict=false
+      - --import-realm
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: on-failure
+    ports:
+      - "8088:8080"
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_DB: mysql
+      KC_DB_URL: jdbc:mysql://mysql:3306/keycloakdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      KC_DB_USERNAME: client
+      KC_DB_PASSWORD: clientpass
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      JAVA_OPTS_KC_HEAP: "-XX:InitialHeapSize=128m -XX:MaxHeapSize=512m"
+      TSB_AUTH_BIOMETRIC_VERIFY_URL: http://auth:8084/auth/api/v1/internal/biometric/verify
+      TSB_AUTH_BIOMETRIC_SECRET: local-biometric-grant-secret
+    volumes:
+      - ../deployment/keycloak:/opt/keycloak/data/import:ro
+
+  auth:
+    build:
+      context: ../auth
+    container_name: tsb-auth
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      keycloak:
+        condition: service_started
+      otel-collector:
+        condition: service_started
+    restart: on-failure
+    ports:
+      - "8084:8084"
+    environment:
+      SERVER_PORT: 8084
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      AUTH_DB_NAME: authdb
+      SPRING_DATA_REDIS_HOST: redis
+      TSB_SHARED_TRACING_OTLP_ENDPOINT: http://otel-collector:4317
+      AUTH_KEYCLOAK_TOKEN_URI: http://keycloak:8080/realms/truongsonbank/protocol/openid-connect/token
+      AUTH_KEYCLOAK_ISSUER_URI: http://localhost:8088/realms/truongsonbank
+      AUTH_KEYCLOAK_INTERNAL_ISSUER_URI: http://keycloak:8080/realms/truongsonbank
+      AUTH_KEYCLOAK_LAN_ISSUER_URI: http://172.20.10.4:8088/realms/truongsonbank
+      AUTH_KEYCLOAK_JWKS_URI: http://keycloak:8080/realms/truongsonbank/protocol/openid-connect/certs
+      AUTH_KEYCLOAK_MOBILE_CLIENT_ID: truongsonbank-mobile
+      AUTH_BIOMETRIC_GRANT_SECRET: local-biometric-grant-secret
+
   bff:
     build:
       context: ../bff
     container_name: tsb-bff
     depends_on:
+      auth:
+        condition: service_started
       common:
         condition: service_started
       redis:
@@ -94,6 +158,7 @@ services:
       TSB_SHARED_INTERNAL_AUTH_HMAC_SECRET: local-dev-secret
       BFF_ROUTE_CLIENT_URI: http://client:8081
       BFF_ROUTE_COMMON_URI: http://common:8083
+      BFF_ROUTE_AUTH_URI: http://auth:8084
 
   client2:
     build:

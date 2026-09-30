@@ -54,6 +54,9 @@ tsb:
         include-query-string: true
         include-body: true
         max-body-length: 4096
+      response:
+        include-body: true
+        max-body-length: 4096
     health:
       enabled: false
   common:

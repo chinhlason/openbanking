@@ -25,11 +25,11 @@ tsb:
     tracing:
       export-enabled: true
       service-name: client2
-      otlp-endpoint: http://localhost:4317
+      otlp-endpoint: ${TSB_SHARED_TRACING_OTLP_ENDPOINT:http://localhost:4317}
       export-timeout: 5s
     kafka:
       bootstrap-servers:
-        - localhost:9092
+        - ${TSB_SHARED_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
       client-id: client2
       group-id: client2
       retry:
@@ -45,10 +45,13 @@ tsb:
         enabled: true
         include-headers: false
         include-query-string: true
-        include-body: false
+        include-body: true
         max-body-length: 4096
         exclude-paths:
           - /actuator/prometheus
+      response:
+        include-body: true
+        max-body-length: 4096
     protocol:
       discovery:
         enabled: true

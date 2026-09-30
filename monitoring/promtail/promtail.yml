@@ -24,10 +24,17 @@ scrape_configs:
     pipeline_stages:
       - docker: {}
       - multiline:
-          firstline: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z\s+(TRACE|DEBUG|INFO|WARN|ERROR)\s+'
+          firstline: '^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z\s+(TRACE|DEBUG|INFO|WARN|ERROR)\s+|\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2},\d{3}\s+(TRACE|DEBUG|INFO|WARN|ERROR)\s+)'
           max_wait_time: 3s
       - regex:
           expression: '(?s)^(?P<timestamp>\S+) (?P<level>\S+)\s+app=(?P<app>\S+) traceId=(?P<traceId>\S*) spanId=(?P<spanId>\S*) \[(?P<thread>[^\]]+)\] (?P<logger>\S+) - (?P<message>.*)$'
+      - match:
+          selector: '{service_name="keycloak"}'
+          stages:
+            - regex:
+                expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2},\d{3})\s+(?P<level>TRACE|DEBUG|INFO|WARN|ERROR)\s+\[(?P<logger>[^\]]+)\]\s+\((?P<thread>[^)]+)\)\s+(?P<message>.*)$'
+            - static_labels:
+                app: keycloak
       - labels:
           level:
           app:

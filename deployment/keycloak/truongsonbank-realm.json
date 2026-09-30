@@ -1,0 +1,53 @@
+{
+  "realm": "truongsonbank",
+  "enabled": true,
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "loginWithEmailAllowed": false,
+  "duplicateEmailsAllowed": false,
+  "sslRequired": "external",
+  "clients": [
+    {
+      "clientId": "truongsonbank-mobile",
+      "name": "TruongSonBank Mobile",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "attributes": {
+        "dpop.bound.access.tokens": "true"
+      }
+    },
+    {
+      "clientId": "truongsonbank-auth-admin",
+      "name": "TruongSonBank Auth Admin",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "local-auth-admin-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true
+    }
+  ],
+  "users": [
+    {
+          "username": "84901234567",
+          "enabled": true,
+          "requiredActions": [],
+          "email": "demo.customer@truongsonbank.local",
+          "emailVerified": true,
+      "firstName": "Demo",
+      "lastName": "Customer",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "739204",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

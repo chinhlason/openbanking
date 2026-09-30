@@ -14,6 +14,7 @@ import org.slf4j.MDC;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.util.ContentCachingRequestWrapper;
+import org.springframework.web.util.ContentCachingResponseWrapper;
 import org.springframework.web.filter.OncePerRequestFilter;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
@@ -63,6 +64,9 @@ class RequestLoggingFilter extends OncePerRequestFilter {
         HttpServletRequest requestToUse = properties.getRequest().isIncludeBody()
                 ? new ContentCachingRequestWrapper(request, Math.max(properties.getRequest().getMaxBodyLength(), 0))
                 : request;
+        HttpServletResponse responseToUse = properties.getResponse().isIncludeBody()
+                ? new ContentCachingResponseWrapper(response)
+                : response;
         String traceId = traceIdProvider.resolve(requestToUse);
         String previousTraceId = MDC.get("traceId");
         String previousTrace_id = MDC.get("trace_id");
@@ -72,12 +76,15 @@ class RequestLoggingFilter extends OncePerRequestFilter {
                 MDC.put("traceId", traceId);
                 MDC.put("trace_id", traceId);
             }
-            filterChain.doFilter(requestToUse, response);
+            filterChain.doFilter(requestToUse, responseToUse);
         } catch (Throwable ex) {
             requestException = ex;
             throw ex;
         } finally {
-            logByStatus(response.getStatus(), toJson(requestLog(requestToUse, response, startNanos)), requestException);
+            logByStatus(responseToUse.getStatus(), toJson(requestLog(requestToUse, responseToUse, startNanos)), requestException);
+            if (responseToUse instanceof ContentCachingResponseWrapper wrapper) {
+                wrapper.copyBodyToResponse();
+            }
             if (previousTraceId == null) {
                 MDC.remove("traceId");
             } else {
@@ -120,6 +127,9 @@ class RequestLoggingFilter extends OncePerRequestFilter {
         }
         if (properties.getRequest().isIncludeBody() && request instanceof ContentCachingRequestWrapper wrapper) {
             event.put("body", body(wrapper));
+        }
+        if (properties.getResponse().isIncludeBody() && response instanceof ContentCachingResponseWrapper wrapper) {
+            event.put("responseBody", responseBody(wrapper));
         }
         return event;
     }
@@ -173,6 +183,17 @@ class RequestLoggingFilter extends OncePerRequestFilter {
         String body = new String(bytes, 0, length, request.getCharacterEncoding() == null
                 ? java.nio.charset.StandardCharsets.UTF_8
                 : java.nio.charset.Charset.forName(request.getCharacterEncoding()));
+        String maskedBody = maskJsonBody(body);
+        return bytes.length > length ? maskedBody + "...[truncated]" : maskedBody;
+    }
+
+    private String responseBody(ContentCachingResponseWrapper response) {
+        byte[] bytes = response.getContentAsByteArray();
+        int max = Math.max(properties.getResponse().getMaxBodyLength(), 0);
+        int length = Math.min(bytes.length, max);
+        String body = new String(bytes, 0, length, response.getCharacterEncoding() == null
+                ? java.nio.charset.StandardCharsets.UTF_8
+                : java.nio.charset.Charset.forName(response.getCharacterEncoding()));
         String maskedBody = maskJsonBody(body);
         return bytes.length > length ? maskedBody + "...[truncated]" : maskedBody;
     }

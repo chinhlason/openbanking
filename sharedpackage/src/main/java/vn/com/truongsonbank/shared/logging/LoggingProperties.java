@@ -11,6 +11,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class LoggingProperties {
     private boolean enabled = true;
     private Request request = new Request();
+    private Response response = new Response();
     private Map<String, MaskRule> maskRules = defaultMaskRules();
 
     public boolean isEnabled() {
@@ -23,6 +24,10 @@ public class LoggingProperties {
 
     public Request getRequest() {
         return request;
+    }
+
+    public Response getResponse() {
+        return response;
     }
 
     public Map<String, MaskRule> getMaskRules() {
@@ -108,6 +113,27 @@ public class LoggingProperties {
 
         public void setExcludePaths(List<String> excludePaths) {
             this.excludePaths = excludePaths == null ? new ArrayList<>() : new ArrayList<>(excludePaths);
+        }
+    }
+
+    public static class Response {
+        private boolean includeBody;
+        private int maxBodyLength = 4096;
+
+        public boolean isIncludeBody() {
+            return includeBody;
+        }
+
+        public void setIncludeBody(boolean includeBody) {
+            this.includeBody = includeBody;
+        }
+
+        public int getMaxBodyLength() {
+            return maxBodyLength;
+        }
+
+        public void setMaxBodyLength(int maxBodyLength) {
+            this.maxBodyLength = maxBodyLength;
         }
     }
 

@@ -23,6 +23,13 @@ spring:
               filters:
                 - StripPrefix=3
                 - PrefixPath=/common/api
+            - id: auth
+              uri: ${BFF_ROUTE_AUTH_URI:http://localhost:8084}
+              predicates:
+                - Path=/auth/**
+              filters:
+                - StripPrefix=3
+                - PrefixPath=/auth/api
 
 server:
   port: 8080
@@ -50,6 +57,16 @@ tsb:
       hmac-secret: ${TSB_INTERNAL_AUTH_HMAC_SECRET:local-dev-secret}
       issuer: bff
       max-skew: 60s
+    logging:
+      request:
+        enabled: true
+        include-headers: false
+        include-query-string: true
+        include-body: true
+        max-body-length: 4096
+      response:
+        include-body: true
+        max-body-length: 4096
     kafka:
       enabled: false
     cache:

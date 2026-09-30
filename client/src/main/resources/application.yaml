@@ -42,7 +42,7 @@ management:
 tsb:
   config:
     enabled: true
-    server-url: http://localhost:8083
+    server-url: ${TSB_CONFIG_SERVER_URL:http://localhost:8083/common/api}
     app: client
     profile: local
     api-key: ${CONFIG_CLIENT_API_KEY:local-config-key}
@@ -54,11 +54,11 @@ tsb:
     tracing:
       export-enabled: true
       service-name: client
-      otlp-endpoint: http://localhost:4317
+      otlp-endpoint: ${TSB_SHARED_TRACING_OTLP_ENDPOINT:http://localhost:4317}
       export-timeout: 5s
     kafka:
       bootstrap-servers:
-        - localhost:9092
+        - ${TSB_SHARED_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
       client-id: client
       group-id: client
       outbox:
@@ -109,6 +109,9 @@ tsb:
         max-body-length: 4096
         exclude-paths:
           - /actuator/prometheus
+      response:
+        include-body: true
+        max-body-length: 4096
       mask-rules:
         username:
           keys: "username"

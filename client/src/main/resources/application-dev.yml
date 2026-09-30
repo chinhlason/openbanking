@@ -91,6 +91,9 @@ tsb:
         exclude-paths:
           - /actuator/prometheus
           - /actuator/health
+      response:
+        include-body: true
+        max-body-length: 4096
       mask-rules:
         username:
           keys: "username"
