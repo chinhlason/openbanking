@@ -44,7 +44,44 @@ services:
       CONFIG_CLIENT_API_KEY: local-config-key
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
-      CLIENT_DB_NAME: clientdb
+      CUSTOMER_DB_NAME: customer
+      COMMON_BASE_URL: http://common:8083/common/api
+      AUTH_BASE_URL: http://auth:8084/auth/api
+      CORE_BASE_URL: http://core:8085
+      AUTH_ONBOARDING_INTERNAL_SECRET: local-onboarding-secret
+
+  core:
+    build:
+      context: ../core
+    container_name: tsb-core
+    depends_on:
+      mysql:
+        condition: service_healthy
+      t29:
+        condition: service_started
+      otel-collector:
+        condition: service_started
+    restart: on-failure
+    ports:
+      - "8085:8085"
+    environment:
+      SERVER_PORT: 8085
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      CORE_DB_NAME: coredb
+      SPRING_DATA_REDIS_HOST: redis
+      T29_BASE_URL: http://t29:8087
+      TSB_SHARED_TRACING_OTLP_ENDPOINT: http://otel-collector:4317
+
+  t29:
+    build:
+      context: ../t29
+    container_name: tsb-t29
+    restart: on-failure
+    ports:
+      - "8087:8087"
+    environment:
+      SERVER_PORT: 8087
 
   common:
     build:
@@ -123,12 +160,14 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       TSB_SHARED_TRACING_OTLP_ENDPOINT: http://otel-collector:4317
       AUTH_KEYCLOAK_TOKEN_URI: http://keycloak:8080/realms/truongsonbank/protocol/openid-connect/token
+      AUTH_KEYCLOAK_ADMIN_BASE_URL: http://keycloak:8080
       AUTH_KEYCLOAK_ISSUER_URI: http://localhost:8088/realms/truongsonbank
       AUTH_KEYCLOAK_INTERNAL_ISSUER_URI: http://keycloak:8080/realms/truongsonbank
-      AUTH_KEYCLOAK_LAN_ISSUER_URI: http://172.20.10.4:8088/realms/truongsonbank
+      AUTH_KEYCLOAK_LAN_ISSUER_URI: http://192.168.0.101:8088/realms/truongsonbank
       AUTH_KEYCLOAK_JWKS_URI: http://keycloak:8080/realms/truongsonbank/protocol/openid-connect/certs
       AUTH_KEYCLOAK_MOBILE_CLIENT_ID: truongsonbank-mobile
       AUTH_BIOMETRIC_GRANT_SECRET: local-biometric-grant-secret
+      AUTH_ONBOARDING_INTERNAL_SECRET: local-onboarding-secret
 
   bff:
     build:
@@ -155,6 +194,7 @@ services:
       TSB_SHARED_PROTOCOL_DISCOVERY_CONSUL_URL: http://consul:8500
       TSB_SHARED_PROTOCOL_DOWNSTREAMS_COMMON_BASE_URL: http://common:8083/common/api
       TSB_SHARED_PROTOCOL_DOWNSTREAMS_CLIENT_BASE_URL: http://client:8081
+      TSB_SHARED_PROTOCOL_DOWNSTREAMS_CORE_BASE_URL: http://core:8085/core/api
       TSB_SHARED_INTERNAL_AUTH_HMAC_SECRET: local-dev-secret
       BFF_ROUTE_CLIENT_URI: http://client:8081
       BFF_ROUTE_COMMON_URI: http://common:8083

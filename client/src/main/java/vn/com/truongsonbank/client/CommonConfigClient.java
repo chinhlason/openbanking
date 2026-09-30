@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @Component
-class CommonConfigClient implements MessageListener {
+public class CommonConfigClient implements MessageListener {
     private final CommonConfigProperties properties;
     private final RedisConnectionFactory redisConnectionFactory;
     private final RestClient restClient;
@@ -69,7 +69,7 @@ class CommonConfigClient implements MessageListener {
         }
     }
 
-    String getString(String key, String defaultValue) {
+    public String getString(String key, String defaultValue) {
         CommonConfigSnapshot current = snapshot.get();
         if (current == null || current.flat() == null) {
             return defaultValue;
@@ -77,11 +77,11 @@ class CommonConfigClient implements MessageListener {
         return current.flat().getOrDefault(key, defaultValue);
     }
 
-    boolean getBoolean(String key, boolean defaultValue) {
+    public boolean getBoolean(String key, boolean defaultValue) {
         return Boolean.parseBoolean(getString(key, String.valueOf(defaultValue)));
     }
 
-    long getLong(String key, long defaultValue) {
+    public long getLong(String key, long defaultValue) {
         try {
             return Long.parseLong(getString(key, String.valueOf(defaultValue)));
         } catch (NumberFormatException ex) {
@@ -89,11 +89,11 @@ class CommonConfigClient implements MessageListener {
         }
     }
 
-    CommonConfigSnapshot snapshot() {
+    public CommonConfigSnapshot snapshot() {
         return snapshot.get();
     }
 
-    void reload(String source, boolean failFast) {
+    public void reload(String source, boolean failFast) {
         try {
             String body = restClient.get()
                     .uri("/config/v1/apps/{app}/profiles/{profile}", properties.getApp(), properties.getProfile())

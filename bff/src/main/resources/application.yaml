@@ -16,6 +16,7 @@ spring:
                 - Path=/client/**
               filters:
                 - StripPrefix=3
+                - PrefixPath=/client/api
             - id: common
               uri: ${BFF_ROUTE_COMMON_URI:http://localhost:8083}
               predicates:

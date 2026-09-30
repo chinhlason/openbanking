@@ -1,3 +1,47 @@
 spring:
   application:
     name: core
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${CORE_DB_NAME:coredb}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: client
+    password: clientpass
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+
+server:
+  port: ${SERVER_PORT:8085}
+
+tsb:
+  core:
+    t29-base-url: ${T29_BASE_URL:http://localhost:8087}
+  shared:
+    kafka:
+      enabled: false
+    cache:
+      enabled: false
+    sequence:
+      enabled: false
+    sharding:
+      enabled: false
+    tracing:
+      export-enabled: true
+      service-name: core
+      otlp-endpoint: ${TSB_SHARED_TRACING_OTLP_ENDPOINT:http://localhost:4317}
+    logging:
+      request:
+        enabled: true
+        include-body: true
+        exclude-paths:
+          - /actuator/prometheus
+          - /actuator/health
+      response:
+        include-body: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,metrics,prometheus"

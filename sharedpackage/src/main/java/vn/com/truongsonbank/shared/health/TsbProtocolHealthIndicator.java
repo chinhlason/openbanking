@@ -36,6 +36,10 @@ class TsbProtocolHealthIndicator extends AbstractHealthIndicator {
         Map<String, Object> details = new LinkedHashMap<>();
         boolean up = true;
         for (Map.Entry<String, ProtocolProperties.Downstream> entry : properties.getDownstreams().entrySet()) {
+            if (!entry.getValue().isEnabled()) {
+                details.put(entry.getKey(), Map.of("status", "disabled"));
+                continue;
+            }
             DownstreamHealth health = health(entry.getKey(), entry.getValue());
             details.put(entry.getKey(), health.details());
             up = up && health.up();

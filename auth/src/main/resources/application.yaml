@@ -35,6 +35,7 @@ tsb:
   auth:
     session-ttl: ${AUTH_SESSION_TTL:10m}
     biometric-grant-secret: ${AUTH_BIOMETRIC_GRANT_SECRET:local-biometric-grant-secret}
+    onboarding-internal-secret: ${AUTH_ONBOARDING_INTERNAL_SECRET:local-onboarding-secret}
     keycloak:
       token-uri: ${AUTH_KEYCLOAK_TOKEN_URI:http://localhost:8088/realms/truongsonbank/protocol/openid-connect/token}
       issuer-uri: ${AUTH_KEYCLOAK_ISSUER_URI:http://localhost:8088/realms/truongsonbank}
@@ -42,6 +43,12 @@ tsb:
       lan-issuer-uri: ${AUTH_KEYCLOAK_LAN_ISSUER_URI:}
       jwks-uri: ${AUTH_KEYCLOAK_JWKS_URI:http://localhost:8088/realms/truongsonbank/protocol/openid-connect/certs}
       mobile-client-id: ${AUTH_KEYCLOAK_MOBILE_CLIENT_ID:truongsonbank-mobile}
+      admin-base-url: ${AUTH_KEYCLOAK_ADMIN_BASE_URL:http://localhost:8088}
+      admin-realm: ${AUTH_KEYCLOAK_ADMIN_REALM:master}
+      realm: ${AUTH_KEYCLOAK_REALM:truongsonbank}
+      admin-client-id: ${AUTH_KEYCLOAK_ADMIN_CLIENT_ID:admin-cli}
+      admin-username: ${AUTH_KEYCLOAK_ADMIN_USERNAME:admin}
+      admin-password: ${AUTH_KEYCLOAK_ADMIN_PASSWORD:admin}
   shared:
     common-config:
       enabled: false

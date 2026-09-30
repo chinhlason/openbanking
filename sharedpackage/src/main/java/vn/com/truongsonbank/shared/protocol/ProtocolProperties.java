@@ -46,12 +46,21 @@ public class ProtocolProperties {
     }
 
     public static class Downstream extends Policy {
+        private boolean enabled = true;
         private String baseUrl;
         private String target;
         private String serviceId;
         private String contextPath;
         private String protocol = "http";
         private Map<String, Policy> operations = new LinkedHashMap<>();
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
 
         public String getBaseUrl() {
             return baseUrl;

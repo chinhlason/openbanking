@@ -92,7 +92,14 @@ final class AuthApi {
             "password=\(urlEncode(pin))"
         ].joined(separator: "&").data(using: .utf8)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        recordStart(request: request)
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            recordError(request: request, error: error)
+            throw error
+        }
         record(request: request, data: data, response: response)
         guard let http = response as? HTTPURLResponse, 200..<300 ~= http.statusCode else {
             throw AuthApiError.http(String(data: data, encoding: .utf8) ?? "Keycloak login failed")
@@ -123,7 +130,14 @@ final class AuthApi {
             "signature=\(urlEncode(signature))"
         ].joined(separator: "&").data(using: .utf8)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        recordStart(request: request)
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            recordError(request: request, error: error)
+            throw error
+        }
         record(request: request, data: data, response: response)
         guard let http = response as? HTTPURLResponse, 200..<300 ~= http.statusCode else {
             throw AuthApiError.http(String(data: data, encoding: .utf8) ?? "Keycloak biometric login failed")
@@ -154,7 +168,14 @@ final class AuthApi {
         }
         request.httpBody = try JSONEncoder().encode(body)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        recordStart(request: request)
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            recordError(request: request, error: error)
+            throw error
+        }
         record(request: request, data: data, response: response)
         guard let http = response as? HTTPURLResponse, 200..<300 ~= http.statusCode else {
             throw AuthApiError.http(String(data: data, encoding: .utf8) ?? "HTTP error")
@@ -180,6 +201,30 @@ final class AuthApi {
                                     requestBody: String(data: request.httpBody ?? Data(), encoding: .utf8) ?? "",
                                     status: (response as? HTTPURLResponse)?.statusCode,
                                     responseBody: String(data: data, encoding: .utf8) ?? "")
+        Task { @MainActor in
+            logs?.add(entry)
+        }
+    }
+
+    private func recordStart(request: URLRequest) {
+        let entry = ApiCallLogEntry(method: request.httpMethod ?? "-",
+                                    url: request.url?.absoluteString ?? "-",
+                                    requestHeaders: headers(request.allHTTPHeaderFields ?? [:]),
+                                    requestBody: String(data: request.httpBody ?? Data(), encoding: .utf8) ?? "",
+                                    status: nil,
+                                    responseBody: "Đang gọi API...")
+        Task { @MainActor in
+            logs?.add(entry)
+        }
+    }
+
+    private func recordError(request: URLRequest, error: Error) {
+        let entry = ApiCallLogEntry(method: request.httpMethod ?? "-",
+                                    url: request.url?.absoluteString ?? "-",
+                                    requestHeaders: headers(request.allHTTPHeaderFields ?? [:]),
+                                    requestBody: String(data: request.httpBody ?? Data(), encoding: .utf8) ?? "",
+                                    status: nil,
+                                    responseBody: error.localizedDescription)
         Task { @MainActor in
             logs?.add(entry)
         }

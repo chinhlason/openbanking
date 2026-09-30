@@ -11,13 +11,13 @@ spring:
       repositories:
         enabled: false
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${CLIENT_DB_NAME:clientdb}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${CUSTOMER_DB_NAME:customer}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: client
     password: clientpass
   jpa:
     hibernate:
-      ddl-auto: none
+      ddl-auto: update
     open-in-view: false
 
 logging:
@@ -40,6 +40,14 @@ management:
         include: "health,metrics,prometheus"
 
 tsb:
+  customer:
+    onboarding:
+      common-base-url: ${COMMON_BASE_URL:http://localhost:8083/common/api}
+      auth-base-url: ${AUTH_BASE_URL:http://localhost:8084/auth/api}
+      core-base-url: ${CORE_BASE_URL:http://localhost:8085}
+      auth-internal-secret: ${AUTH_ONBOARDING_INTERNAL_SECRET:local-onboarding-secret}
+      session-ttl: 15m
+      otp-ttl: 5m
   config:
     enabled: true
     server-url: ${TSB_CONFIG_SERVER_URL:http://localhost:8083/common/api}
@@ -91,12 +99,12 @@ tsb:
       default-datasource: shard-0
       datasources:
         shard-0:
-          url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${CLIENT_DB_NAME:clientdb}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+          url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${CUSTOMER_DB_NAME:customer}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
           driver-class-name: com.mysql.cj.jdbc.Driver
           username: client
           password: clientpass
         shard-1:
-          url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${CLIENT_DB_NAME:clientdb}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+          url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${CUSTOMER_DB_NAME:customer}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
           driver-class-name: com.mysql.cj.jdbc.Driver
           username: client
           password: clientpass
@@ -163,9 +171,11 @@ tsb:
         client-self:
           base-url: http://localhost:8081
         client2:
+          enabled: false
           service-id: client2
           base-url: http://client2:8082
         client2-grpc:
+          enabled: false
           service-id: client2-grpc
           target: client2:9092
           response-timeout: 1s

@@ -13,6 +13,7 @@
 		111111111111111111111114 /* DeviceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 211111111111111111111116 /* DeviceIdentity.swift */; };
 		111111111111111111111115 /* BiometricIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 211111111111111111111117 /* BiometricIdentity.swift */; };
 		111111111111111111111116 /* ApiCallLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 211111111111111111111118 /* ApiCallLog.swift */; };
+		111111111111111111111117 /* CustomerOnboardingApi.swift in Sources */ = {isa = PBXBuildFile; fileRef = 211111111111111111111119 /* CustomerOnboardingApi.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -24,6 +25,7 @@
 		211111111111111111111116 /* DeviceIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceIdentity.swift; sourceTree = "<group>"; };
 		211111111111111111111117 /* BiometricIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricIdentity.swift; sourceTree = "<group>"; };
 		211111111111111111111118 /* ApiCallLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApiCallLog.swift; sourceTree = "<group>"; };
+		211111111111111111111119 /* CustomerOnboardingApi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerOnboardingApi.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -51,6 +53,7 @@
 				211111111111111111111111 /* TruongSonBankMobileApp.swift */,
 				211111111111111111111112 /* ContentView.swift */,
 				211111111111111111111113 /* AuthApi.swift */,
+				211111111111111111111119 /* CustomerOnboardingApi.swift */,
 				211111111111111111111118 /* ApiCallLog.swift */,
 				211111111111111111111116 /* DeviceIdentity.swift */,
 				211111111111111111111117 /* BiometricIdentity.swift */,
@@ -138,6 +141,7 @@
 				111111111111111111111111 /* TruongSonBankMobileApp.swift in Sources */,
 				111111111111111111111112 /* ContentView.swift in Sources */,
 				111111111111111111111113 /* AuthApi.swift in Sources */,
+				111111111111111111111117 /* CustomerOnboardingApi.swift in Sources */,
 				111111111111111111111116 /* ApiCallLog.swift in Sources */,
 				111111111111111111111114 /* DeviceIdentity.swift in Sources */,
 				111111111111111111111115 /* BiometricIdentity.swift in Sources */,

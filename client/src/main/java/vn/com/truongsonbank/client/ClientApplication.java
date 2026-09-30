@@ -2,9 +2,11 @@ package vn.com.truongsonbank.client;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.service.annotation.GetExchange;
+import vn.com.truongsonbank.client.customer.config.CustomerOnboardingProperties;
 import vn.com.truongsonbank.shared.protocol.TsbGrpcClientFactory;
 import vn.com.truongsonbank.shared.protocol.TsbHttpClientFactory;
 import vn.com.truongsonbank.shared.protocol.TsbOperation;
@@ -13,6 +15,7 @@ import vn.com.truongsonbank.grpc.demo.DemoEchoServiceGrpc;
 import java.util.Map;
 
 @SpringBootApplication
+@EnableConfigurationProperties(CustomerOnboardingProperties.class)
 public class ClientApplication {
 
     public static void main(String[] args) {

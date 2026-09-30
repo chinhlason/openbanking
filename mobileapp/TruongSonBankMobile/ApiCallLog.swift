@@ -16,6 +16,15 @@ final class ApiLogStore: ObservableObject {
     @Published private(set) var entries: [ApiCallLogEntry] = []
 
     func add(_ entry: ApiCallLogEntry) {
+        if entry.responseBody != "Đang gọi API..." {
+            entries.removeAll {
+                $0.status == nil
+                    && $0.responseBody == "Đang gọi API..."
+                    && $0.method == entry.method
+                    && $0.url == entry.url
+                    && $0.requestBody == entry.requestBody
+            }
+        }
         entries.insert(entry, at: 0)
         if entries.count > 100 {
             entries.removeLast(entries.count - 100)
@@ -48,7 +57,7 @@ struct ApiLogsView: View {
                             HStack {
                                 Text(entry.method)
                                     .font(.caption.monospaced().bold())
-                                Text(entry.status.map(String.init) ?? "ERR")
+                                Text(entry.status.map(String.init) ?? "...")
                                     .font(.caption.monospaced())
                                     .foregroundStyle(statusColor(entry.status))
                             }
@@ -65,7 +74,7 @@ struct ApiLogsView: View {
     }
 
     private func statusColor(_ status: Int?) -> Color {
-        guard let status else { return .red }
+        guard let status else { return .blue }
         return 200..<300 ~= status ? .green : .red
     }
 }
@@ -85,7 +94,7 @@ struct ApiLogDetailView: View {
             }
 
             Section("Response") {
-                LabeledContent("Status", value: entry.status.map(String.init) ?? "Network error")
+                LabeledContent("Status", value: entry.status.map(String.init) ?? "Pending")
                 LogBlock(title: "Body", text: entry.responseBody)
             }
         }

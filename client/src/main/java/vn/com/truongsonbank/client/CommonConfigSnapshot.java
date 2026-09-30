@@ -2,7 +2,7 @@ package vn.com.truongsonbank.client;
 
 import java.util.Map;
 
-record CommonConfigSnapshot(
+public record CommonConfigSnapshot(
         String app,
         String profile,
         long version,

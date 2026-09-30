@@ -10,7 +10,7 @@ The service stores non-secret configuration in DB, supports draft-to-publish wor
 
 This module belongs in `/common`, not `sharedpackage`.
 
-`/common` is a modular monolith. It can contain multiple bounded contexts such as `config`, `notification`, `file`, and `sms`, but they are deployed as one application in phase 1. Each bounded context should be structured like a real service using hexagonal architecture so it can be extracted into a microservice later with minimal package movement.
+`/common` is a modular monolith. It can contain multiple bounded contexts such as `config`, `notification`, `file`, `sms`, and `thirdparty`, but they are deployed as one application in phase 1. Each bounded context should be structured like a real service using hexagonal architecture so it can be extracted into a microservice later with minimal package movement.
 
 ## 2. Approved Scope
 
@@ -107,6 +107,17 @@ vn.com.truongsonbank.common
     application
     adapter
     infrastructure
+
+  thirdparty
+    domain
+    application
+    adapter
+      inbound
+        rest
+    infrastructure
+      sms
+      nfc
+      ekyc
 ```
 
 Hexagonal rules:
@@ -124,6 +135,33 @@ Extraction goal:
 - `common.notification` can later become a standalone `notification-service`.
 - `common.file` can later become a standalone `file-service`.
 - `common.sms` can later become a standalone `sms-service`.
+- `common.thirdparty` can later be replaced by real provider adapters or split into provider-specific integration services.
+
+## 3.2 Common Third-Party Mock Module
+
+`common.thirdparty` is the local mock layer for systems outside TruongSonBank.
+
+Initial mock capabilities:
+
+- send SMS OTP
+- verify SMS OTP
+- verify NFC CCCD
+- return mocked eKYC/identity profile
+
+Suggested API path:
+
+```text
+/common/api/3rd/sms/otp/send
+/common/api/3rd/sms/otp/verify
+/common/api/3rd/nfc/cccd/verify
+```
+
+Rules:
+
+- Java package should be `thirdparty`, not `3rd`, because Java package segments cannot start with a digit.
+- `/3rd` is allowed in REST paths.
+- Domain services should call their own ports. Their adapters may call `common.thirdparty` while local providers are mocked.
+- Do not put customer onboarding state in `common.thirdparty`; it only simulates outside providers.
 
 ## 4. Config Scope
 
