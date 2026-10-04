@@ -44,6 +44,8 @@ BFF does:
 - verify DPoP for mobile sensitive APIs
 - remove client-supplied internal headers
 - create `X-Auth-*` and `X-DPoP-*` headers
+- resolve entitlement snapshot for the authenticated subject
+- enrich and sign entitlement context for downstream services
 - sign auth headers with HMAC
 - forward request to downstream typed HTTP clients
 - propagate OpenTelemetry trace context
@@ -56,6 +58,7 @@ BFF does not:
 - aggregate home/dashboard responses
 - make business decisions
 - authorize domain permissions
+- calculate package/group entitlement graph
 - own account, transfer, payment, config, or customer logic
 - rewrite downstream response wrappers
 
@@ -94,6 +97,12 @@ Expected session fields:
   "status": "ACTIVE"
 }
 ```
+
+### Entitlement enrichment
+
+After session/token validation, BFF reads the session projection from Redis L2. The projection contains subject, roles and service packages. BFF then looks up role/package metadata in its L1 cache, merges the concrete operations, and includes the resulting allow/deny lists, version and expiry in the signed internal auth context. Client-supplied `X-Auth-Entitlements`, deny, version and reference headers are stripped first.
+
+The domain remains the final authorization owner through sharedpackage `@RequireEntitlement`; BFF only transports a verified, signed context. See [entitlement-enrichment-implementation-plan.md](entitlement-enrichment-implementation-plan.md).
 
 BFF validates:
 

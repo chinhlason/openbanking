@@ -98,6 +98,8 @@ public class InternalAuthVerificationFilter extends OncePerRequestFilter {
         put(headers, request, InternalAuthHeaders.TRUSTED_DEVICE);
         put(headers, request, InternalAuthHeaders.ROLES);
         put(headers, request, InternalAuthHeaders.SCOPES);
+        put(headers, request, InternalAuthHeaders.ENTITLEMENTS);
+        put(headers, request, InternalAuthHeaders.ENTITLEMENT_VERSION);
         put(headers, request, InternalAuthHeaders.DPOP_VERIFIED);
         put(headers, request, InternalAuthHeaders.DPOP_JKT);
         put(headers, request, InternalAuthHeaders.DPOP_JTI);
@@ -120,6 +122,8 @@ public class InternalAuthVerificationFilter extends OncePerRequestFilter {
                 Boolean.parseBoolean(headers.get(InternalAuthHeaders.TRUSTED_DEVICE)),
                 csv(headers.get(InternalAuthHeaders.ROLES)),
                 csv(headers.get(InternalAuthHeaders.SCOPES)),
+                csv(headers.get(InternalAuthHeaders.ENTITLEMENTS)),
+                version(headers.get(InternalAuthHeaders.ENTITLEMENT_VERSION)),
                 Boolean.parseBoolean(headers.get(InternalAuthHeaders.DPOP_VERIFIED)),
                 headers.get(InternalAuthHeaders.DPOP_JKT),
                 headers.get(InternalAuthHeaders.DPOP_JTI));
@@ -133,5 +137,13 @@ public class InternalAuthVerificationFilter extends OncePerRequestFilter {
                 .map(String::trim)
                 .filter(item -> !item.isBlank())
                 .toList();
+    }
+
+    private long version(String value) {
+        try {
+            return value == null || value.isBlank() ? 0L : Long.parseLong(value);
+        } catch (NumberFormatException ignored) {
+            return 0L;
+        }
     }
 }

@@ -37,6 +37,7 @@ services:
       SERVER_PORT: 8081
       SPRING_DATA_REDIS_HOST: redis
       TSB_SHARED_TRACING_OTLP_ENDPOINT: http://otel-collector:4317
+      TSB_SHARED_INTERNAL_AUTH_HMAC_SECRET: local-dev-secret
       TSB_SHARED_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       TSB_SHARED_KAFKA_CLIENT_ID: client
       TSB_SHARED_KAFKA_GROUP_ID: client
@@ -49,6 +50,8 @@ services:
       AUTH_BASE_URL: http://auth:8084/auth/api
       CORE_BASE_URL: http://core:8085
       AUTH_ONBOARDING_INTERNAL_SECRET: local-onboarding-secret
+      ENTITLEMENT_ADMIN_KEY: local-admin-key
+      DEFAULT_SERVICE_PACKAGE: STANDARD
 
   core:
     build:
@@ -99,7 +102,7 @@ services:
       SERVER_PORT: 8083
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
-      COMMON_DB_NAME: commondb
+      COMMON_DB_NAME: entitlementdb
       SPRING_DATA_REDIS_HOST: redis
       TSB_SHARED_TRACING_OTLP_ENDPOINT: http://otel-collector:4317
       COMMON_CONFIG_ADMIN_API_KEY: local-admin-key
@@ -147,6 +150,8 @@ services:
         condition: service_started
       keycloak:
         condition: service_started
+      common:
+        condition: service_started
       otel-collector:
         condition: service_started
     restart: on-failure
@@ -168,6 +173,8 @@ services:
       AUTH_KEYCLOAK_MOBILE_CLIENT_ID: truongsonbank-mobile
       AUTH_BIOMETRIC_GRANT_SECRET: local-biometric-grant-secret
       AUTH_ONBOARDING_INTERNAL_SECRET: local-onboarding-secret
+      AUTH_COMMON_BASE_URL: http://common:8083/common/api
+      AUTH_COMMON_ADMIN_KEY: local-admin-key
 
   bff:
     build:
@@ -194,11 +201,15 @@ services:
       TSB_SHARED_PROTOCOL_DISCOVERY_CONSUL_URL: http://consul:8500
       TSB_SHARED_PROTOCOL_DOWNSTREAMS_COMMON_BASE_URL: http://common:8083/common/api
       TSB_SHARED_PROTOCOL_DOWNSTREAMS_CLIENT_BASE_URL: http://client:8081
-      TSB_SHARED_PROTOCOL_DOWNSTREAMS_CORE_BASE_URL: http://core:8085/core/api
+      TSB_SHARED_PROTOCOL_DOWNSTREAMS_AUTH_BASE_URL: http://auth:8084/auth/api
       TSB_SHARED_INTERNAL_AUTH_HMAC_SECRET: local-dev-secret
+      BFF_ENTITLEMENT_COMMON_URL: http://common:8083/common/api
+      BFF_ENTITLEMENT_ADMIN_KEY: local-admin-key
       BFF_ROUTE_CLIENT_URI: http://client:8081
       BFF_ROUTE_COMMON_URI: http://common:8083
       BFF_ROUTE_AUTH_URI: http://auth:8084
+      BFF_AUTH_BASE_URL: http://auth:8084/auth/api
+      AUTH_ONBOARDING_INTERNAL_SECRET: local-onboarding-secret
 
   client2:
     build:

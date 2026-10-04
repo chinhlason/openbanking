@@ -8,9 +8,11 @@ public record SessionResponse(
         long expiresInSeconds,
         Instant expiresAt,
         String subject,
+        String customerId,
         String username,
         String deviceId,
         boolean trustedDevice,
-        List<String> roles
+        List<String> roles,
+        List<String> servicePackages
 ) {
 }

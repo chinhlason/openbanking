@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import vn.com.truongsonbank.auth.authentication.config.AuthProperties;
 import vn.com.truongsonbank.shared.exception.UnauthorizedException;
 
+import java.net.URI;
 import java.util.List;
 
 @Component
@@ -44,6 +45,25 @@ public class KeycloakTokenValidator {
                 || (properties.getKeycloak().getInternalIssuerUri() != null
                 && properties.getKeycloak().getInternalIssuerUri().equals(issuer))
                 || (properties.getKeycloak().getLanIssuerUri() != null
-                && properties.getKeycloak().getLanIssuerUri().equals(issuer));
+                && properties.getKeycloak().getLanIssuerUri().equals(issuer))
+                || isLocalRealmIssuer(issuer);
+    }
+
+    private boolean isLocalRealmIssuer(String issuer) {
+        try {
+            URI uri = URI.create(issuer);
+            return ("/realms/" + properties.getKeycloak().getRealm()).equals(uri.getPath()) && allowedHost(uri.getHost());
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
+    private boolean allowedHost(String host) {
+        return host != null && (host.equals("keycloak")
+                || host.equals("localhost")
+                || host.equals("127.0.0.1")
+                || host.startsWith("192.168.")
+                || host.startsWith("10.")
+                || host.matches("172\\.(1[6-9]|2[0-9]|3[0-1])\\..*"));
     }
 }

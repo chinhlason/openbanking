@@ -14,6 +14,11 @@ class ThirdPartyMockController {
         return new OtpSendResponse("mock-otp-" + request.phone(), "123456", 300);
     }
 
+    @PostMapping("/3rd/sms/password/send")
+    PasswordSendResponse sendPassword(@RequestBody PasswordSendRequest request) {
+        return new PasswordSendResponse("mock-password-" + request.phone(), true);
+    }
+
     @PostMapping("/3rd/sms/otp/verify")
     OtpVerifyResponse verifyOtp(@RequestBody OtpVerifyRequest request) {
         return new OtpVerifyResponse("123456".equals(request.otp()));
@@ -44,6 +49,12 @@ class ThirdPartyMockController {
     }
 
     record OtpVerifyResponse(boolean verified) {
+    }
+
+    record PasswordSendRequest(String phone, String password) {
+    }
+
+    record PasswordSendResponse(String providerMessageId, boolean sent) {
     }
 
     record NfcVerifyRequest(String providerSessionId, String cccd) {

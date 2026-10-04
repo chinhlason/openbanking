@@ -2,10 +2,15 @@ spring:
   application:
     name: common
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${COMMON_DB_NAME:commondb}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${COMMON_DB_NAME:entitlementdb}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: client
     password: clientpass
+  sql:
+    init:
+      mode: always
+      continue-on-error: true
+      schema-locations: classpath:entitlement-schema.sql
   data:
     redis:
       host: localhost

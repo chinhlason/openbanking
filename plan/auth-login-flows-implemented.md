@@ -6,29 +6,15 @@ Use case: user enters `username + PIN` on native app.
 
 Flow:
 
-1. App calls Keycloak token endpoint:
+1. App requests an Auth login challenge through BFF/Auth:
 
 ```http
-POST /realms/truongsonbank/protocol/openid-connect/token
-Content-Type: application/x-www-form-urlencoded
-DPoP: <proof signed by device key>
-
-grant_type=password
-client_id=truongsonbank-mobile
-username=84901234567
-password=739204
-```
-
-2. Keycloak validates credential and returns `access_token`.
-3. App sends token to Auth Service:
-
-```http
-POST /auth/api/v1/token/exchange
-Authorization: DPoP <keycloak_access_token>
-DPoP: <proof signed by device key, includes nonce + ath>
+POST /bff/api/auth/v1/login/init
 Content-Type: application/json
 
 {
+  "loginType": "PIN",
+  "username": "84901234567",
   "device": {
     "deviceId": "...",
     "deviceName": "...",
@@ -40,7 +26,29 @@ Content-Type: application/json
 }
 ```
 
-4. Auth validates Keycloak token, validates DPoP proof, consumes one-time nonce, checks `ath`, calculates `jkt`, upserts device, creates internal session, stores session in Redis and DB.
+2. Auth stores `challengeId + nonce + dpopJkt + username + deviceId` in Redis.
+3. App submits PIN plus DPoP proof:
+
+```http
+POST /bff/api/auth/v1/login/verify
+DPoP: <proof signed by device key>
+Content-Type: application/json
+
+{
+  "loginType": "PIN",
+  "username": "84901234567",
+  "pin": "739204",
+  "challengeId": "login_xxx",
+  "nonce": "yyy",
+  "keycloakDpopProof": "<proof for Keycloak token endpoint>",
+  "device": {
+    "deviceId": "...",
+    "publicKey": "<dpop-public-key>"
+  }
+}
+```
+
+4. Auth validates DPoP, consumes challenge, calls Keycloak custom grant `grant_type=tsb-pin`, validates Keycloak token, creates internal session, stores session in Redis and DB.
 5. App receives internal `sessionId`.
 
 Result:
@@ -48,12 +56,6 @@ Result:
 - App uses `X-Session-Id` for internal APIs.
 - Sensitive Auth APIs require `DPoP` proof signed by the same device private key.
 - Internal session is bound to `dpop_jkt`, so replaying `sessionId` from another device key is rejected.
-
-Before `/token/exchange`, app obtains a one-time nonce:
-
-```http
-POST /auth/api/v1/dpop/nonce
-```
 
 ## 2. Trust Device
 
@@ -78,7 +80,7 @@ Auth checks:
 - DPoP proof is valid and not replayed
 - path/method/iat/jti are valid
 - device belongs to the current session
-- PIN is still valid via Keycloak password grant
+- PIN is still valid via Keycloak custom grant `grant_type=tsb-pin`
 
 Result:
 
@@ -146,7 +148,12 @@ Auth checks:
 Result:
 
 - `auth_device.biometric_enabled = true`
-- `auth_device.biometric_public_key = <publicKey>`
+- Keycloak credential store saves one credential row:
+  - table: `keycloakdb.CREDENTIAL`
+  - `TYPE = tsb-biometric`
+  - `USER_LABEL = biometric:{deviceId}`
+  - `CREDENTIAL_DATA` contains `deviceId` and biometric public key
+- Auth DB does not store the biometric public key.
 
 ## 4. Biometric Passwordless Login
 
@@ -154,15 +161,19 @@ Use case: user logs in with FaceID/TouchID, without sending PIN/password.
 
 Flow:
 
-1. App requests challenge:
+1. App requests the unified login challenge:
 
 ```http
-POST /auth/api/v1/biometric/challenge
+POST /bff/api/auth/v1/login/init
 Content-Type: application/json
 
 {
+  "loginType": "BIOMETRIC",
   "username": "84901234567",
-  "deviceId": "..."
+  "device": {
+    "deviceId": "...",
+    "publicKey": "<dpop-public-key>"
+  }
 }
 ```
 
@@ -172,56 +183,54 @@ Content-Type: application/json
 - device belongs to username
 - device is trusted
 - biometric is enabled
-- biometric public key exists
+- Keycloak has a `tsb-biometric` credential for the device
+- DPoP public key belongs to the trusted device
 
 3. Auth stores a single-use Redis challenge with TTL 60s and returns:
 
 ```json
 {
-  "challengeId": "bio_xxx",
+  "challengeId": "login_xxx",
   "nonce": "random",
   "expiresInSeconds": 60,
-  "payload": "bio_xxx.random.84901234567.device-id"
+  "payload": "login_xxx.random.84901234567.device-id"
 }
 ```
 
 4. App prompts FaceID/TouchID.
 5. If biometric succeeds, app signs `payload` with biometric private key.
-6. App calls Keycloak custom grant:
+6. App sends the signed challenge to Auth through BFF:
 
 ```http
-POST /realms/truongsonbank/protocol/openid-connect/token
-Content-Type: application/x-www-form-urlencoded
+POST /bff/api/auth/v1/login/verify
 DPoP: <proof signed by device key>
+Content-Type: application/json
 
-grant_type=biometric
-client_id=truongsonbank-mobile
-username=84901234567
-device_id=<deviceId>
-challenge_id=<challengeId>
-nonce=<nonce>
-signature=<base64-der-signature>
+{
+  "loginType": "BIOMETRIC",
+  "username": "84901234567",
+  "challengeId": "<challengeId>",
+  "nonce": "<nonce>",
+  "signature": "<base64-der-signature>",
+  "keycloakDpopProof": "<proof for Keycloak token endpoint>",
+  "device": {
+    "deviceId": "...",
+    "publicKey": "<dpop-public-key>"
+  }
+}
 ```
 
-7. Keycloak biometric grant calls Auth internal verify endpoint:
+7. Auth validates the banking login context before calling Keycloak:
 
-```http
-POST /auth/api/v1/internal/biometric/verify
-X-Keycloak-Biometric-Secret: <shared-secret>
-```
+- DPoP proof matches the challenge `dpopJkt`
+- challenge exists, matches username/device/nonce/loginType, and is single-use
+- device is trusted
+- biometric is enabled for that device
 
-8. Auth verifies:
-
-- challenge exists
-- challenge matches username/device/nonce
-- challenge is single-use
-- device is still trusted
-- biometric is still enabled
-- signature matches stored biometric public key
-
-9. Keycloak returns `access_token`.
-10. App calls `/token/exchange` exactly like PIN login, with one-time nonce and `ath`.
-11. Auth returns internal `sessionId`.
+8. Auth calls Keycloak custom grant `grant_type=biometric` and forwards the signed challenge.
+9. Keycloak biometric grant verifies the signature using the public key stored in the Keycloak credential row with `TYPE = tsb-biometric`.
+10. Keycloak returns `access_token` to Auth.
+11. Auth validates token, creates internal session, and returns `sessionId` to app.
 
 Result:
 
@@ -244,33 +253,69 @@ Result:
 - Auth verifies DPoP.
 - Auth extends Redis session TTL and updates DB `expiresAt`.
 
-## 6. Implemented Components
+## 6. Passkey Passwordless Login
+
+Current implementation is passkey-like for native-flow testing: device creates a Secure Enclave EC key, Auth issues a single-use challenge, Keycloak stores the public key as a credential row and verifies the signed challenge.
+
+Keycloak storage:
+
+- table: `keycloakdb.CREDENTIAL`
+- `TYPE = tsb-passkey`
+- `USER_LABEL = passkey:{deviceId}`
+- `CREDENTIAL_DATA` contains `deviceId` and public key
+
+Endpoints:
+
+- `POST /auth/api/v1/devices/{deviceId}/passkey/enable/challenge`
+- `POST /auth/api/v1/devices/{deviceId}/passkey/enable`
+- `POST /auth/api/v1/login/init` with `loginType=PASSKEY`
+- `POST /auth/api/v1/login/verify` with `loginType=PASSKEY`
+- Keycloak token grant: `grant_type=passkey`
+
+Passkey login follows the same ownership split as biometric login: Auth verifies DPoP, challenge, trusted device, and passkey-enabled state; Keycloak verifies the passkey credential signature and mints the token.
+
+Auth DB stores only the device state flag:
+
+- `auth_device.passkey_enabled`
+
+## 7. Implemented Components
 
 - Auth Service:
-  - `/v1/login/pin`
   - `/v1/dpop/nonce`
   - `/v1/token/exchange`
+  - `/v1/login/init`
+  - `/v1/login/verify`
   - `/v1/devices/{deviceId}/trust`
+  - `/v1/devices/{deviceId}/biometric/enable/challenge`
   - `/v1/devices/{deviceId}/biometric/enable`
   - `/v1/devices/{deviceId}/biometric/disable`
-  - `/v1/biometric/challenge`
-  - `/v1/internal/biometric/verify`
+  - `/v1/devices/{deviceId}/passkey/enable/challenge`
+  - `/v1/devices/{deviceId}/passkey/enable`
+  - `/v1/devices/{deviceId}/passkey/disable`
 
 - Keycloak:
+  - custom OAuth grant `grant_type=tsb-pin`
   - custom OAuth grant `grant_type=biometric`
+  - custom OAuth grant `grant_type=passkey`
+  - credential types `tsb-pin`, `tsb-biometric`, `tsb-passkey`
   - provider module: `keycloak-biometric-provider`
 
 - iOS app:
-  - PIN login
+- PIN login
   - DPoP device key
   - trusted device
   - biometric key pair
   - biometric challenge signing
   - biometric passwordless login
+  - passkey-like key pair
+  - passkey challenge signing
+  - passkey passwordless login
 
-## 7. Current Limits
+## 8. Current Limits
 
 - Risk engine/captcha/step-up is not implemented yet.
-- Keycloak DPoP-bound token is enabled for `truongsonbank-mobile`; Auth Service also enforces DPoP at `/token/exchange`, checks token `cnf.jkt`, and binds internal session to `jkt`.
-- Server-side `/login/pin` is disabled to avoid a weaker session creation path; native app must call Keycloak directly, then exchange token with Auth.
-- Biometric grant uses Keycloak internal OAuth grant SPI, which Keycloak marks as internal and version-sensitive.
+- Auth Service enforces DPoP on challenge verify endpoints and binds internal session to `jkt`.
+- `/token/exchange` remains for portal/legacy integration, but mobile PIN/biometric login now uses Auth challenge endpoints.
+- Biometric/passkey grants use Keycloak internal OAuth grant SPI, which Keycloak marks as internal and version-sensitive.
+- Keycloak biometric/passkey grants do not call Auth back; Auth verifies login context before requesting the Keycloak token.
+- Passkey flow does not yet implement full WebAuthn attestation/assertion verification.

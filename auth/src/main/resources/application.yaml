@@ -36,6 +36,8 @@ tsb:
     session-ttl: ${AUTH_SESSION_TTL:10m}
     biometric-grant-secret: ${AUTH_BIOMETRIC_GRANT_SECRET:local-biometric-grant-secret}
     onboarding-internal-secret: ${AUTH_ONBOARDING_INTERNAL_SECRET:local-onboarding-secret}
+    common-base-url: ${AUTH_COMMON_BASE_URL:http://localhost:8083/common/api}
+    common-admin-key: ${AUTH_COMMON_ADMIN_KEY:local-admin-key}
     keycloak:
       token-uri: ${AUTH_KEYCLOAK_TOKEN_URI:http://localhost:8088/realms/truongsonbank/protocol/openid-connect/token}
       issuer-uri: ${AUTH_KEYCLOAK_ISSUER_URI:http://localhost:8088/realms/truongsonbank}

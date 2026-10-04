@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TSB Operations Portal</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">TS</span><div><strong>TruongSonBank</strong><small>Operations Portal</small></div></div>
+    <div class="connection"><span id="healthDot" class="dot"></span><span id="healthText">Chưa kiểm tra kết nối</span></div>
+  </header>
+  <main class="shell">
+    <section class="config-panel panel">
+      <div class="panel-title"><div><span class="eyebrow">RUNTIME</span><h1>Kết nối hệ thống</h1></div><button id="healthBtn" class="button secondary">Kiểm tra</button></div>
+      <div class="grid three">
+        <label>BFF base URL <span class="hint">Portal luôn gọi qua BFF</span><input id="baseUrl" value="http://localhost:8086/bff/api/common"></label>
+        <label>Admin key<input id="adminKey" type="password" value="local-admin-key"></label>
+        <label>Actor ID<input id="actorId" value="portal-admin"></label>
+      </div>
+    </section>
+
+    <nav class="tabs" aria-label="Portal modules"><button class="tab active" data-tab="configs">Config Management</button><button class="tab" data-tab="entitlements">Entitlements</button><button class="tab" data-tab="api-log">API Log <span id="logCount" class="badge">0</span></button></nav>
+
+    <section id="configs" class="tab-content active">
+      <div class="grid two">
+        <article class="panel">
+          <div class="panel-title"><div><span class="eyebrow">CONFIG STORE</span><h2>Draft configuration</h2></div><button id="loadDraftBtn" class="icon-button" title="Tải draft">↻</button></div>
+          <div class="grid two compact"><label>App<input id="configApp" value="client"></label><label>Profile<input id="configProfile" value="local"></label></div>
+        <label>Danh sách cấu hình <span class="hint">Mỗi dòng một key=value</span><textarea id="configEntries" rows="9" placeholder="feature.example=true\nlogging.level.root=INFO"></textarea></label>
+          <div class="actions"><button id="loadDraftBtn2" class="button secondary">Load draft</button><button id="saveDraftBtn" class="button primary">Lưu draft</button></div>
+        </article>
+        <article class="panel">
+          <div class="panel-title"><div><span class="eyebrow">RELEASE</span><h2>Publish & rollback</h2></div></div>
+          <div class="actions stacked"><button id="publishBtn" class="button primary">Publish toàn bộ draft</button><label>Danh sách key cần publish riêng <span class="hint">Phân tách bằng dấu phẩy</span><input id="publishKeys" placeholder="key.a, key.b"></label><button id="publishKeysBtn" class="button secondary">Publish keys</button></div>
+          <div class="divider"></div>
+          <div class="grid two compact"><label>Version cần rollback <span class="hint">Nhập số version đã publish</span><input id="rollbackVersion" type="number" min="1" placeholder="5"></label><button id="rollbackBtn" class="button danger">Rollback</button></div>
+          <button id="auditBtn" class="button ghost full">Xem audit history</button>
+        </article>
+      </div>
+      <article class="panel"><div class="panel-title"><div><span class="eyebrow">CURRENT STATE</span><h2>Snapshot</h2></div><button id="loadSnapshotBtn" class="button secondary">Refresh</button></div><pre id="configOutput" class="output">Chưa có dữ liệu.</pre></article>
+    </section>
+
+    <section id="entitlements" class="tab-content">
+      <div class="grid two">
+        <article class="panel"><div class="panel-title"><div><span class="eyebrow">CATALOG</span><h2>Tạo entitlement</h2></div><button id="loadCatalogBtn" class="button secondary">Tải catalog</button></div>
+          <form id="operationForm" class="form"><h3>Operation</h3><div class="grid three compact"><label>Mã operation<input name="code" placeholder="TRANSFER" required></label><label>Tên hiển thị<input name="name" placeholder="Transfer money" required></label><label>Domain sở hữu<input name="domain" placeholder="payments" required></label></div><button class="button primary">Tạo operation</button></form>
+          <form id="groupForm" class="form"><h3>Group</h3><div class="grid three compact"><label>Mã group<input name="code" placeholder="PAYMENTS" required></label><label>Tên hiển thị<input name="name" placeholder="Payments group" required></label><label>ID group cha <span class="hint">Để trống nếu là group gốc</span><input name="parentId" type="number" placeholder="Parent ID"></label></div><button class="button primary">Tạo group</button></form>
+          <form id="packageForm" class="form"><h3>Service package</h3><div class="grid two compact"><label>Mã service package<input name="code" placeholder="STANDARD" required></label><label>Tên hiển thị<input name="name" placeholder="Standard package" required></label></div><button class="button primary">Tạo package</button></form>
+          <form id="groupOperationForm" class="form"><h3>Gắn operation vào group</h3><div class="grid three compact"><label>Group<select name="groupId" data-catalog="groups" required><option value="">Tải catalog trước</option></select></label><label>Operation<select name="operationId" data-catalog="operations" required><option value="">Tải catalog trước</option></select></label><label>Effect<select name="effect"><option>ALLOW</option><option>DENY</option></select></label></div><button class="button primary">Gắn operation</button></form>
+          <form id="packageGroupForm" class="form"><h3>Gắn group vào service package</h3><div class="grid three compact"><label>Service package<select name="packageId" data-catalog="packages" required><option value="">Tải catalog trước</option></select></label><label>Group<select name="groupId" data-catalog="groups" required><option value="">Tải catalog trước</option></select></label><label>Effect<select name="effect"><option>ALLOW</option><option>DENY</option></select></label></div><button class="button primary">Gắn group</button></form>
+          <form id="customerPackageForm" class="form"><h3>Gán service package cho customer</h3><div class="grid two compact"><label>Customer ID<input name="customerId" placeholder="customer-001" required></label><label>Service package<select name="packageId" data-catalog="packages" required><option value="">Tải catalog trước</option></select></label></div><button class="button primary">Gán package</button></form>
+        </article>
+        <article class="panel"><div class="panel-title"><div><span class="eyebrow">SUBJECT ACCESS</span><h2>Entitlement snapshot</h2></div></div>
+          <div class="grid two compact"><label>Loại subject <span class="hint">Ví dụ: CUSTOMER, STAFF, SYSTEM</span><input id="subjectType" value="CUSTOMER"></label><label>Subject ID <span class="hint">Mã người dùng hoặc hệ thống</span><input id="subjectId" placeholder="customer-001"></label></div><button id="loadEntitlementBtn" class="button secondary full">Load snapshot</button>
+          <pre id="entitlementOutput" class="output">Chưa có dữ liệu.</pre>
+          <form id="snapshotForm" class="form"><h3>Upsert snapshot</h3><label>Quyền được phép (Allow) <span class="hint">Mã operation, phân tách bằng dấu phẩy</span><input name="allow" placeholder="TRANSFER,VIEW_BALANCE"></label><label>Quyền bị từ chối (Deny) <span class="hint">Mã operation, phân tách bằng dấu phẩy</span><input name="deny" placeholder="DELETE_ACCOUNT"></label><button class="button primary">Lưu snapshot</button></form>
+          <form id="overrideForm" class="form"><h3>Custom override cho subject</h3><div class="grid two compact"><label>Subject type<input name="type" value="CUSTOMER" required></label><label>Subject ID<input name="id" placeholder="customer-001" required></label><label>Operation<select name="operationId" data-catalog="operations" required><option value="">Tải catalog trước</option></select></label><label>Effect<select name="effect"><option>ALLOW</option><option>DENY</option></select></label></div><label>Lý do override<input name="reason" placeholder="Temporary transfer permission"></label><button class="button primary">Lưu override</button></form>
+        </article>
+      </div>
+    </section>
+
+    <section id="api-log" class="tab-content"><article class="panel"><div class="panel-title"><div><span class="eyebrow">DEBUG</span><h2>API request log</h2></div><button id="clearLogBtn" class="button ghost">Xóa log</button></div><div id="apiLog" class="api-log empty">Chưa có request.</div></article></section>
+  </main>
+  <div id="toast" class="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>

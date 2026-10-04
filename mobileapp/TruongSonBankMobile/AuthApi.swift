@@ -18,6 +18,12 @@ struct AuthSession: Decodable {
     let roles: [String]
 }
 
+struct EntitlementTestResult: Decodable {
+    let allowed: Bool
+    let operation: String
+    let service: String
+}
+
 final class AuthApi {
     private let logs: ApiLogStore?
 
@@ -26,36 +32,96 @@ final class AuthApi {
     }
 
     func login(baseURL: String, keycloakURL: String, username: String, pin: String) async throws -> AuthSession {
-        let token = try await keycloakToken(keycloakURL: keycloakURL, username: username, pin: pin)
-        let nonce = try await dpopNonce(baseURL: baseURL)
-        let body = ExchangeBody(device: try DeviceIdentity.current())
-        return try await post(baseURL: baseURL, path: "/token/exchange", body: body, sessionId: nil, bearerToken: token, dpopNonce: nonce.nonce, dpopAccessToken: token)
+        let device = try DeviceIdentity.current()
+        guard let keycloakTokenURL = URL(string: keycloakURL) else {
+            throw AuthApiError.badURL
+        }
+        let challenge: LoginChallenge = try await post(baseURL: baseURL,
+                                                       path: "/login/init",
+                                                       body: LoginInitBody(loginType: "PIN", username: username, device: device),
+                                                       sessionId: nil,
+                                                       bearerToken: nil)
+        return try await post(baseURL: baseURL,
+                              path: "/login/verify",
+                              body: LoginVerifyBody(loginType: "PIN",
+                                                    username: username,
+                                                    pin: pin,
+                                                    password: nil,
+                                                    challengeId: challenge.challengeId,
+                                                    nonce: challenge.nonce,
+                                                    signature: nil,
+                                                    device: device,
+                                                    keycloakDpopProof: try DeviceIdentity.dpopProof(method: "POST", url: keycloakTokenURL)),
+                              sessionId: nil,
+                              bearerToken: nil,
+                              dpopRequired: true)
     }
 
     func biometricLogin(baseURL: String, keycloakURL: String, username: String) async throws -> AuthSession {
-        let deviceId = try DeviceIdentity.currentDeviceId()
-        let challenge: BiometricChallenge = try await post(baseURL: baseURL,
-                                                           path: "/biometric/challenge",
-                                                           body: BiometricChallengeBody(username: username, deviceId: deviceId),
-                                                           sessionId: nil,
-                                                           bearerToken: nil)
-        let signature = try BiometricIdentity.sign(payload: challenge.payload)
-        let token = try await biometricKeycloakToken(keycloakURL: keycloakURL,
-                                                     username: username,
-                                                     deviceId: deviceId,
-                                                     challenge: challenge,
-                                                     signature: signature)
-        let nonce = try await dpopNonce(baseURL: baseURL)
-        let body = ExchangeBody(device: try DeviceIdentity.current())
-        return try await post(baseURL: baseURL, path: "/token/exchange", body: body, sessionId: nil, bearerToken: token, dpopNonce: nonce.nonce, dpopAccessToken: token)
+        let device = try DeviceIdentity.current()
+        guard let keycloakTokenURL = URL(string: keycloakURL) else {
+            throw AuthApiError.badURL
+        }
+        let challenge: LoginChallenge = try await post(baseURL: baseURL,
+                                                       path: "/login/init",
+                                                       body: LoginInitBody(loginType: "BIOMETRIC", username: username, device: device),
+                                                       sessionId: nil,
+                                                       bearerToken: nil)
+        return try await post(baseURL: baseURL,
+                              path: "/login/verify",
+                              body: LoginVerifyBody(loginType: "BIOMETRIC",
+                                                    username: username,
+                                                    pin: nil,
+                                                    password: nil,
+                                                    challengeId: challenge.challengeId,
+                                                    nonce: challenge.nonce,
+                                                    signature: try BiometricIdentity.sign(payload: challenge.payload),
+                                                    device: device,
+                                                    keycloakDpopProof: try DeviceIdentity.dpopProof(method: "POST", url: keycloakTokenURL)),
+                              sessionId: nil,
+                              bearerToken: nil,
+                              dpopRequired: true)
+    }
+
+    func passkeyLogin(baseURL: String, keycloakURL: String, username: String) async throws -> AuthSession {
+        let device = try DeviceIdentity.current()
+        guard let keycloakTokenURL = URL(string: keycloakURL) else {
+            throw AuthApiError.badURL
+        }
+        let challenge: LoginChallenge = try await post(baseURL: baseURL,
+                                                       path: "/login/init",
+                                                       body: LoginInitBody(loginType: "PASSKEY", username: username, device: device),
+                                                       sessionId: nil,
+                                                       bearerToken: nil)
+        return try await post(baseURL: baseURL,
+                              path: "/login/verify",
+                              body: LoginVerifyBody(loginType: "PASSKEY",
+                                                    username: username,
+                                                    pin: nil,
+                                                    password: nil,
+                                                    challengeId: challenge.challengeId,
+                                                    nonce: challenge.nonce,
+                                                    signature: try PasskeyIdentity.sign(payload: challenge.payload),
+                                                    device: device,
+                                                    keycloakDpopProof: try DeviceIdentity.dpopProof(method: "POST", url: keycloakTokenURL)),
+                              sessionId: nil,
+                              bearerToken: nil,
+                              dpopRequired: true)
     }
 
     func keepAlive(baseURL: String, sessionId: String) async throws -> AuthSession {
         try await post(baseURL: baseURL, path: "/sessions/keep-alive", body: EmptyBody(), sessionId: sessionId, bearerToken: nil)
     }
 
-    func trustDevice(baseURL: String, session: AuthSession, pin: String) async throws -> AuthSession {
-        try await post(baseURL: baseURL, path: "/devices/\(session.deviceId)/trust", body: TrustDeviceBody(pin: pin), sessionId: session.sessionId, bearerToken: nil)
+    func trustDevice(baseURL: String, keycloakURL: String, session: AuthSession, pin: String) async throws -> AuthSession {
+        guard let keycloakTokenURL = URL(string: keycloakURL) else {
+            throw AuthApiError.badURL
+        }
+        return try await post(baseURL: baseURL,
+                              path: "/devices/\(session.deviceId)/trust",
+                              body: TrustDeviceBody(pin: pin, keycloakDpopProof: try DeviceIdentity.dpopProof(method: "POST", url: keycloakTokenURL)),
+                              sessionId: session.sessionId,
+                              bearerToken: nil)
     }
 
     func enableBiometric(baseURL: String, session: AuthSession) async throws {
@@ -77,79 +143,29 @@ final class AuthApi {
         BiometricIdentity.deleteKey()
     }
 
-    private func keycloakToken(keycloakURL: String, username: String, pin: String) async throws -> String {
-        guard let url = URL(string: keycloakURL) else {
-            throw AuthApiError.badURL
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        request.setValue(try DeviceIdentity.dpopProof(method: request.httpMethod ?? "POST", url: url), forHTTPHeaderField: "DPoP")
-        request.httpBody = [
-            "grant_type=password",
-            "client_id=truongsonbank-mobile",
-            "username=\(urlEncode(username))",
-            "password=\(urlEncode(pin))"
-        ].joined(separator: "&").data(using: .utf8)
-
-        recordStart(request: request)
-        let (data, response): (Data, URLResponse)
-        do {
-            (data, response) = try await URLSession.shared.data(for: request)
-        } catch {
-            recordError(request: request, error: error)
-            throw error
-        }
-        record(request: request, data: data, response: response)
-        guard let http = response as? HTTPURLResponse, 200..<300 ~= http.statusCode else {
-            throw AuthApiError.http(String(data: data, encoding: .utf8) ?? "Keycloak login failed")
-        }
-        let token = try JSONDecoder().decode(KeycloakToken.self, from: data)
-        return token.accessToken
+    func enablePasskey(baseURL: String, session: AuthSession) async throws {
+        let challenge: BiometricChallenge = try await post(baseURL: baseURL,
+                                                           path: "/devices/\(session.deviceId)/passkey/enable/challenge",
+                                                           body: EmptyBody(),
+                                                           sessionId: session.sessionId,
+                                                           bearerToken: nil)
+        let body = BiometricEnableBody(publicKey: try PasskeyIdentity.publicKey(),
+                                       challengeId: challenge.challengeId,
+                                       nonce: challenge.nonce,
+                                       signature: try PasskeyIdentity.sign(payload: challenge.payload))
+        try await post(baseURL: baseURL, path: "/devices/\(session.deviceId)/passkey/enable", body: body, sessionId: session.sessionId, bearerToken: nil) as SimpleResult
     }
 
-    private func biometricKeycloakToken(keycloakURL: String,
-                                        username: String,
-                                        deviceId: String,
-                                        challenge: BiometricChallenge,
-                                        signature: String) async throws -> String {
-        guard let url = URL(string: keycloakURL) else {
-            throw AuthApiError.badURL
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        request.setValue(try DeviceIdentity.dpopProof(method: request.httpMethod ?? "POST", url: url), forHTTPHeaderField: "DPoP")
-        request.httpBody = [
-            "grant_type=biometric",
-            "client_id=truongsonbank-mobile",
-            "username=\(urlEncode(username))",
-            "device_id=\(urlEncode(deviceId))",
-            "challenge_id=\(urlEncode(challenge.challengeId))",
-            "nonce=\(urlEncode(challenge.nonce))",
-            "signature=\(urlEncode(signature))"
-        ].joined(separator: "&").data(using: .utf8)
-
-        recordStart(request: request)
-        let (data, response): (Data, URLResponse)
-        do {
-            (data, response) = try await URLSession.shared.data(for: request)
-        } catch {
-            recordError(request: request, error: error)
-            throw error
-        }
-        record(request: request, data: data, response: response)
-        guard let http = response as? HTTPURLResponse, 200..<300 ~= http.statusCode else {
-            throw AuthApiError.http(String(data: data, encoding: .utf8) ?? "Keycloak biometric login failed")
-        }
-        return try JSONDecoder().decode(KeycloakToken.self, from: data).accessToken
+    func disablePasskey(baseURL: String, session: AuthSession) async throws {
+        try await post(baseURL: baseURL, path: "/devices/\(session.deviceId)/passkey/disable", body: EmptyBody(), sessionId: session.sessionId, bearerToken: nil) as SimpleResult
+        PasskeyIdentity.deleteKey()
     }
 
-    private func dpopNonce(baseURL: String) async throws -> DpopNonce {
-        try await post(baseURL: baseURL, path: "/dpop/nonce", body: EmptyBody(), sessionId: nil, bearerToken: nil)
+    func entitlementTest(baseURL: String, sessionId: String) async throws -> EntitlementTestResult {
+        try await get(baseURL: baseURL, path: "/shared-test/entitlement/test2", sessionId: sessionId)
     }
 
-    private func post<T: Decodable, B: Encodable>(baseURL: String, path: String, body: B, sessionId: String?, bearerToken: String?, dpopNonce: String? = nil, dpopAccessToken: String? = nil) async throws -> T {
+    private func post<T: Decodable, B: Encodable>(baseURL: String, path: String, body: B, sessionId: String?, bearerToken: String?, dpopNonce: String? = nil, dpopAccessToken: String? = nil, dpopRequired: Bool = false) async throws -> T {
         guard let url = URL(string: baseURL + path) else {
             throw AuthApiError.badURL
         }
@@ -163,10 +179,41 @@ final class AuthApi {
         if let bearerToken {
             request.setValue("DPoP \(bearerToken)", forHTTPHeaderField: "Authorization")
         }
-        if sessionId != nil || dpopNonce != nil {
+        if sessionId != nil || dpopNonce != nil || dpopRequired {
             request.setValue(try DeviceIdentity.dpopProof(method: request.httpMethod ?? "POST", url: url, nonce: dpopNonce, accessToken: dpopAccessToken), forHTTPHeaderField: "DPoP")
         }
         request.httpBody = try JSONEncoder().encode(body)
+
+        recordStart(request: request)
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            recordError(request: request, error: error)
+            throw error
+        }
+        record(request: request, data: data, response: response)
+        guard let http = response as? HTTPURLResponse, 200..<300 ~= http.statusCode else {
+            throw AuthApiError.http(String(data: data, encoding: .utf8) ?? "HTTP error")
+        }
+
+        let wrapped = try JSONDecoder().decode(TsbResponse<T>.self, from: data)
+        guard wrapped.success, let data = wrapped.data else {
+            throw AuthApiError.http(wrapped.message)
+        }
+        return data
+    }
+
+    private func get<T: Decodable>(baseURL: String, path: String, sessionId: String?) async throws -> T {
+        guard let url = URL(string: baseURL + path) else {
+            throw AuthApiError.badURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        if let sessionId {
+            request.setValue(sessionId, forHTTPHeaderField: "X-Session-Id")
+        }
 
         recordStart(request: request)
         let (data, response): (Data, URLResponse)
@@ -269,8 +316,36 @@ struct DpopNonce: Decodable {
     let expiresInSeconds: Int
 }
 
+struct LoginInitBody: Encodable {
+    let loginType: String
+    let username: String
+    let device: DeviceInfo
+}
+
+struct LoginVerifyBody: Encodable {
+    let loginType: String
+    let username: String
+    let pin: String?
+    let password: String?
+    let challengeId: String
+    let nonce: String
+    let signature: String?
+    let device: DeviceInfo
+    let keycloakDpopProof: String
+}
+
+struct LoginChallenge: Decodable {
+    let challengeId: String
+    let nonce: String
+    let expiresInSeconds: Int
+    let payload: String
+    let availableMethods: [String]
+    let trustedDeviceRequired: Bool
+}
+
 struct TrustDeviceBody: Encodable {
     let pin: String
+    let keycloakDpopProof: String
 }
 
 struct BiometricEnableBody: Encodable {
@@ -283,6 +358,16 @@ struct BiometricEnableBody: Encodable {
 struct BiometricChallengeBody: Encodable {
     let username: String
     let deviceId: String
+}
+
+struct BiometricLoginVerifyBody: Encodable {
+    let username: String
+    let deviceId: String
+    let challengeId: String
+    let nonce: String
+    let signature: String
+    let device: DeviceInfo
+    let keycloakDpopProof: String
 }
 
 struct BiometricChallenge: Decodable {

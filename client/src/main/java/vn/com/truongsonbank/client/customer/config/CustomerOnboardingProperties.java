@@ -10,6 +10,8 @@ public class CustomerOnboardingProperties {
     private String authBaseUrl = "http://localhost:8084/auth/api";
     private String coreBaseUrl = "http://localhost:8085";
     private String authInternalSecret = "local-onboarding-secret";
+    private String entitlementAdminKey = "local-admin-key";
+    private String defaultServicePackage = "STANDARD";
     private Duration sessionTtl = Duration.ofMinutes(15);
     private Duration otpTtl = Duration.ofMinutes(5);
 
@@ -43,6 +45,22 @@ public class CustomerOnboardingProperties {
 
     public void setAuthInternalSecret(String authInternalSecret) {
         this.authInternalSecret = authInternalSecret;
+    }
+
+    public String getEntitlementAdminKey() {
+        return entitlementAdminKey;
+    }
+
+    public void setEntitlementAdminKey(String entitlementAdminKey) {
+        this.entitlementAdminKey = entitlementAdminKey;
+    }
+
+    public String getDefaultServicePackage() {
+        return defaultServicePackage;
+    }
+
+    public void setDefaultServicePackage(String defaultServicePackage) {
+        this.defaultServicePackage = defaultServicePackage;
     }
 
     public Duration getSessionTtl() {

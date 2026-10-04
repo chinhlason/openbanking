@@ -95,3 +95,82 @@ enum BiometricIdentity {
         return error
     }
 }
+
+enum PasskeyIdentity {
+    private static let keyTag = "vn.com.truongsonbank.mobile.demo.passkey-key"
+
+    static func publicKey() throws -> String {
+        deleteKey()
+        let privateKey = try createPrivateKey()
+        guard let publicKey = SecKeyCopyPublicKey(privateKey),
+              let data = SecKeyCopyExternalRepresentation(publicKey, nil) as Data? else {
+            throw AuthApiError.http("Không thể sinh khóa passkey")
+        }
+        return data.base64EncodedString()
+    }
+
+    static func sign(payload: String) throws -> String {
+        let key = try loadExistingPrivateKey()
+        var error: Unmanaged<CFError>?
+        guard let signature = SecKeyCreateSignature(key,
+                                                    .ecdsaSignatureMessageX962SHA256,
+                                                    Data(payload.utf8) as CFData,
+                                                    &error) as Data? else {
+            if let error {
+                throw error.takeRetainedValue() as Error
+            }
+            throw AuthApiError.http("Không thể ký passkey challenge")
+        }
+        return signature.base64EncodedString()
+    }
+
+    static func deleteKey() {
+        SecItemDelete([
+            kSecClass as String: kSecClassKey,
+            kSecAttrApplicationTag as String: Data(keyTag.utf8),
+            kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom
+        ] as CFDictionary)
+    }
+
+    private static func loadExistingPrivateKey() throws -> SecKey {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassKey,
+            kSecAttrApplicationTag as String: Data(keyTag.utf8),
+            kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom,
+            kSecReturnRef as String: true,
+            kSecUseOperationPrompt as String: "Xác thực để dùng passkey"
+        ]
+        var item: CFTypeRef?
+        if SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess, let key = item {
+            return (key as! SecKey)
+        }
+        throw AuthApiError.http("Chưa bật passkey trên thiết bị này")
+    }
+
+    private static func createPrivateKey() throws -> SecKey {
+        guard let access = SecAccessControlCreateWithFlags(nil,
+                                                           kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly,
+                                                           [.privateKeyUsage, .userPresence],
+                                                           nil) else {
+            throw AuthApiError.http("Không thể tạo passkey access control")
+        }
+        let attributes: [String: Any] = [
+            kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom,
+            kSecAttrKeySizeInBits as String: 256,
+            kSecAttrTokenID as String: kSecAttrTokenIDSecureEnclave,
+            kSecPrivateKeyAttrs as String: [
+                kSecAttrIsPermanent as String: true,
+                kSecAttrApplicationTag as String: Data(keyTag.utf8),
+                kSecAttrAccessControl as String: access
+            ]
+        ]
+        var error: Unmanaged<CFError>?
+        guard let key = SecKeyCreateRandomKey(attributes as CFDictionary, &error) else {
+            if let error {
+                throw error.takeRetainedValue() as Error
+            }
+            throw AuthApiError.http("Không thể tạo khóa passkey")
+        }
+        return key
+    }
+}

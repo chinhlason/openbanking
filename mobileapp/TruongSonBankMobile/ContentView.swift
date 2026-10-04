@@ -14,6 +14,7 @@ struct ContentView: View {
                         Text("Onboarding").tag("onboarding")
                         Text("Login").tag("login")
                         Text("Config").tag("config")
+                        Text("Entitlement").tag("entitlement")
                     }
                     .pickerStyle(.segmented)
 
@@ -21,8 +22,10 @@ struct ContentView: View {
                         onboardingView
                     } else if mode == "login" {
                         loginView
-                    } else {
+                    } else if mode == "config" {
                         configView
+                    } else {
+                        entitlementView
                     }
 
                     if let session = viewModel.session {
@@ -158,6 +161,10 @@ struct ContentView: View {
                     Task { await viewModel.biometricLogin() }
                 }
                 .buttonStyle(.bordered)
+                Button("Đăng nhập bằng Passkey") {
+                    Task { await viewModel.passkeyLogin() }
+                }
+                .buttonStyle(.bordered)
                 if viewModel.biometricEnabled {
                     Button("Tắt sinh trắc học trên app") {
                         viewModel.resetLocalBiometric()
@@ -176,9 +183,49 @@ struct ContentView: View {
                 TextField("Auth URL", text: $viewModel.baseURL)
                     .textInputAutocapitalization(.never)
                     .keyboardType(.URL)
+                TextField("Entitlement test URL", text: $viewModel.entitlementURL)
+                    .textInputAutocapitalization(.never)
+                    .keyboardType(.URL)
                 TextField("Keycloak URL", text: $viewModel.keycloakURL)
                     .textInputAutocapitalization(.never)
                     .keyboardType(.URL)
+            }
+        }
+    }
+
+    private var entitlementView: some View {
+        VStack(spacing: 14) {
+            appCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Test operation TEST2")
+                        .font(.headline)
+                    TextField("Session ID", text: $viewModel.entitlementSessionId)
+                        .textInputAutocapitalization(.never)
+                        .font(.body.monospaced())
+                    HStack {
+                        Button("Dùng session hiện tại") {
+                            viewModel.useCurrentSessionForEntitlement()
+                        }
+                        .disabled(viewModel.session == nil)
+                        Spacer()
+                        Button("Gọi API") {
+                            Task { await viewModel.testEntitlement() }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(viewModel.isLoading || viewModel.entitlementSessionId.isEmpty)
+                    }
+                }
+            }
+
+            if let result = viewModel.entitlementResult {
+                appCard {
+                    VStack(alignment: .leading, spacing: 8) {
+                        LabeledContent("Allowed", value: result.allowed ? "Yes" : "No")
+                        LabeledContent("Operation", value: result.operation)
+                        LabeledContent("Service", value: result.service)
+                    }
+                    .font(.callout)
+                }
             }
         }
     }
@@ -201,6 +248,10 @@ struct ContentView: View {
                         Toggle("Bio", isOn: $viewModel.biometricEnabled)
                             .onChange(of: viewModel.biometricEnabled) { _, enabled in
                                 Task { await viewModel.setBiometric(enabled) }
+                            }
+                        Toggle("Passkey", isOn: $viewModel.passkeyEnabled)
+                            .onChange(of: viewModel.passkeyEnabled) { _, enabled in
+                                Task { await viewModel.setPasskey(enabled) }
                             }
                     } else {
                         Button("Trust device") {
@@ -242,10 +293,11 @@ private struct OnboardingStepRow: View {
 
 @MainActor
 final class LoginViewModel: ObservableObject {
-    @Published var baseURL = LoginViewModel.savedURL("auth.baseURL", fallback: "http://192.168.0.101:8086/bff/api/auth/v1")
-    @Published var keycloakURL = LoginViewModel.savedURL("auth.keycloakURL", fallback: "http://192.168.0.101:8088/realms/truongsonbank/protocol/openid-connect/token")
-    @Published var customerURL = LoginViewModel.savedURL("customer.baseURL", fallback: "http://192.168.0.101:8086/bff/api/client/v1")
-    @Published var commonURL = LoginViewModel.savedURL("common.baseURL", fallback: "http://192.168.0.101:8086/bff/api/common")
+    @Published var baseURL = LoginViewModel.savedURL("auth.baseURL", fallback: LoginViewModel.defaultAuthURL)
+    @Published var keycloakURL = LoginViewModel.savedURL("auth.keycloakURL", fallback: LoginViewModel.defaultKeycloakURL)
+    @Published var customerURL = LoginViewModel.savedURL("customer.baseURL", fallback: LoginViewModel.defaultCustomerURL)
+    @Published var commonURL = LoginViewModel.savedURL("common.baseURL", fallback: LoginViewModel.defaultCommonURL)
+    @Published var entitlementURL = LoginViewModel.savedURL("entitlement.baseURL", fallback: LoginViewModel.defaultEntitlementURL)
     @Published var username = "84901234567"
     @Published var pin = "739204"
     @Published var onboardingPhone = "84901234567"
@@ -253,8 +305,11 @@ final class LoginViewModel: ObservableObject {
     @Published var onboarding: OnboardingViewResponse?
     @Published var session: AuthSession?
     @Published var message: String?
+    @Published var entitlementSessionId = "enrichment-test"
+    @Published var entitlementResult: EntitlementTestResult?
     @Published var isLoading = false
     @Published var biometricEnabled = UserDefaults.standard.bool(forKey: "auth.biometricEnabled")
+    @Published var passkeyEnabled = UserDefaults.standard.bool(forKey: "auth.passkeyEnabled")
 
     let apiLogs = ApiLogStore()
     private lazy var api = AuthApi(logs: apiLogs)
@@ -264,10 +319,9 @@ final class LoginViewModel: ObservableObject {
 
     private static func savedURL(_ key: String, fallback: String) -> String {
         let value = UserDefaults.standard.string(forKey: key) ?? fallback
-        if value.contains("172.20.10.4") {
-            let migrated = value.replacingOccurrences(of: "172.20.10.4", with: "192.168.0.101")
-            UserDefaults.standard.set(migrated, forKey: key)
-            return migrated
+        if value.contains("192.168.0.101") || value.contains("172.20.10.4") {
+            UserDefaults.standard.set(fallback, forKey: key)
+            return fallback
         }
         if value.contains(":8081/client/api/v1") {
             let migrated = value
@@ -276,6 +330,42 @@ final class LoginViewModel: ObservableObject {
             return migrated
         }
         return value
+    }
+
+    private static var defaultAuthURL: String {
+        backendHost + ":8086/bff/api/auth/v1"
+    }
+
+    private static var defaultCustomerURL: String {
+        backendHost + ":8086/bff/api/client/v1"
+    }
+
+    private static var defaultCommonURL: String {
+        backendHost + ":8086/bff/api/common"
+    }
+
+    private static var defaultEntitlementURL: String {
+        backendHost + ":8086/bff/api/client"
+    }
+
+    private static var defaultKeycloakURL: String {
+        keycloakHost + ":8088/realms/truongsonbank/protocol/openid-connect/token"
+    }
+
+    private static var backendHost: String {
+        infoString("TSBBackendHost") ?? "http://192.168.0.101"
+    }
+
+    private static var keycloakHost: String {
+        infoString("TSBKeycloakHost") ?? backendHost
+    }
+
+    private static func infoString(_ key: String) -> String? {
+        guard let value = Bundle.main.object(forInfoDictionaryKey: key) as? String else {
+            return nil
+        }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty || trimmed.contains("$(") ? nil : trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     }
     private var biometricFailureCount = 0
 
@@ -372,6 +462,7 @@ final class LoginViewModel: ObservableObject {
             UserDefaults.standard.set(baseURL, forKey: "auth.baseURL")
             UserDefaults.standard.set(keycloakURL, forKey: "auth.keycloakURL")
             UserDefaults.standard.set(customerURL, forKey: "customer.baseURL")
+            entitlementSessionId = session.sessionId
         }
     }
 
@@ -406,7 +497,8 @@ final class LoginViewModel: ObservableObject {
     func verifyOnboardingQr() async {
         guard let id = onboarding?.onboardingId else { return }
         await run {
-            onboarding = try await onboardingApi.verifyQr(baseURL: customerURL, onboardingId: id)
+            let rawQr = try await VnptSdkPresenter.shared.openQrScan()
+            onboarding = try await onboardingApi.verifyQr(baseURL: customerURL, onboardingId: id, rawQr: rawQr)
             message = "QR CCCD verified"
         }
     }
@@ -415,13 +507,14 @@ final class LoginViewModel: ObservableObject {
         guard let id = onboarding?.onboardingId else { return }
         await run {
             onboarding = try await onboardingApi.verifyNfc(baseURL: customerURL, onboardingId: id)
-            message = "NFC CCCD verified"
+            message = "NFC CCCD verified (mock)"
         }
     }
 
     func verifyOnboardingLiveness() async {
         guard let id = onboarding?.onboardingId else { return }
         await run {
+            _ = try await VnptSdkPresenter.shared.openLiveness()
             onboarding = try await onboardingApi.verifyLiveness(baseURL: customerURL, onboardingId: id)
             message = "Liveness verified"
         }
@@ -433,6 +526,7 @@ final class LoginViewModel: ObservableObject {
             let completed = try await onboardingApi.complete(baseURL: customerURL, onboardingId: id, pin: pin)
             session = completed.authSession
             username = completed.username
+            entitlementSessionId = completed.sessionId
             onboarding = OnboardingViewResponse(onboardingId: completed.onboardingId,
                                                 status: completed.status,
                                                 expiresAt: nil,
@@ -453,6 +547,7 @@ final class LoginViewModel: ObservableObject {
             let session = try await api.biometricLogin(baseURL: baseURL, keycloakURL: keycloakURL, username: username)
             self.session = session
             self.biometricFailureCount = 0
+            self.entitlementSessionId = session.sessionId
             self.message = "Đăng nhập sinh trắc học thành công"
             UserDefaults.standard.set(baseURL, forKey: "auth.baseURL")
             UserDefaults.standard.set(keycloakURL, forKey: "auth.keycloakURL")
@@ -463,6 +558,21 @@ final class LoginViewModel: ObservableObject {
             } else {
                 message = error.localizedDescription
             }
+        }
+    }
+
+    func passkeyLogin() async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let session = try await api.passkeyLogin(baseURL: baseURL, keycloakURL: keycloakURL, username: username)
+            self.session = session
+            self.entitlementSessionId = session.sessionId
+            self.message = "Đăng nhập passkey thành công"
+            UserDefaults.standard.set(baseURL, forKey: "auth.baseURL")
+            UserDefaults.standard.set(keycloakURL, forKey: "auth.keycloakURL")
+        } catch {
+            message = error.localizedDescription
         }
     }
 
@@ -477,7 +587,7 @@ final class LoginViewModel: ObservableObject {
     func trustDevice() async {
         guard let session else { return }
         await run {
-            self.session = try await api.trustDevice(baseURL: baseURL, session: session, pin: pin)
+            self.session = try await api.trustDevice(baseURL: baseURL, keycloakURL: keycloakURL, session: session, pin: pin)
             self.message = "Thiết bị đã được trust"
         }
     }
@@ -507,12 +617,48 @@ final class LoginViewModel: ObservableObject {
         }
     }
 
+    func setPasskey(_ enabled: Bool) async {
+        guard let session else { return }
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            if enabled {
+                try await api.enablePasskey(baseURL: baseURL, session: session)
+                self.passkeyEnabled = true
+                UserDefaults.standard.set(true, forKey: "auth.passkeyEnabled")
+                self.message = "Đã bật login passkey"
+            } else {
+                try await api.disablePasskey(baseURL: baseURL, session: session)
+                self.passkeyEnabled = false
+                UserDefaults.standard.set(false, forKey: "auth.passkeyEnabled")
+                self.message = "Đã tắt login passkey"
+            }
+        } catch {
+            self.passkeyEnabled = !enabled
+            UserDefaults.standard.set(!enabled, forKey: "auth.passkeyEnabled")
+            self.message = error.localizedDescription
+        }
+    }
+
     func resetLocalBiometric() {
         BiometricIdentity.deleteKey()
         biometricEnabled = false
         biometricFailureCount = 0
         UserDefaults.standard.set(false, forKey: "auth.biometricEnabled")
         message = "Đã tắt sinh trắc học trên app. Đăng nhập PIN để đồng bộ trạng thái trên server nếu cần."
+    }
+
+    func useCurrentSessionForEntitlement() {
+        guard let session else { return }
+        entitlementSessionId = session.sessionId
+    }
+
+    func testEntitlement() async {
+        await run {
+            entitlementResult = try await api.entitlementTest(baseURL: entitlementURL, sessionId: entitlementSessionId)
+            UserDefaults.standard.set(entitlementURL, forKey: "entitlement.baseURL")
+            message = "Entitlement TEST2 allowed"
+        }
     }
 
     private func run(_ action: () async throws -> Void) async {

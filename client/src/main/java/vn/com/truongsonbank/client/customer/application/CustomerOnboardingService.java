@@ -207,6 +207,8 @@ public class CustomerOnboardingService {
             accountResponse = new OpenAccountResponse(session.getAccountNumber());
         }
         saveAccountLink(profile.getId(), accountResponse.accountNumber());
+        assignDefaultServicePackage(profile.getId());
+        bindCustomerToAuthSession(authResponse.sessionId(), profile.getId());
         session.setCustomerId(profile.getId());
         session.setStatus(CustomerOnboardingStatus.COMPLETED);
         touch(session);
@@ -254,6 +256,24 @@ public class CustomerOnboardingService {
         link.setStatus("ACTIVE");
         link.setUpdatedAt(now);
         accountLinks.save(link);
+    }
+
+    private void assignDefaultServicePackage(String customerId) {
+        common.post()
+                .uri("/entitlements/admin/customers/{customerId}/service-packages/by-code/{code}",
+                        customerId, properties.getDefaultServicePackage())
+                .header("X-Config-Admin-Key", properties.getEntitlementAdminKey())
+                .retrieve()
+                .toBodilessEntity();
+    }
+
+    private void bindCustomerToAuthSession(String sessionId, String customerId) {
+        auth.post()
+                .uri("/v1/internal/sessions/{sessionId}/customer", sessionId)
+                .header("X-Internal-Onboarding-Secret", properties.getAuthInternalSecret())
+                .body(Map.of("customerId", customerId))
+                .retrieve()
+                .toBodilessEntity();
     }
 
     private CustomerOnboardingSessionEntity require(String id, CustomerOnboardingStatus status) {

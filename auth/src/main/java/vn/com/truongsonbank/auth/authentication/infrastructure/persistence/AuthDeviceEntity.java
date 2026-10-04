@@ -23,8 +23,7 @@ public class AuthDeviceEntity {
     private String publicKey;
     private boolean trusted;
     private boolean biometricEnabled;
-    @Column(length = 4096)
-    private String biometricPublicKey;
+    private boolean passkeyEnabled;
     private Instant createdAt;
     private Instant lastSeenAt;
 
@@ -108,12 +107,12 @@ public class AuthDeviceEntity {
         this.biometricEnabled = biometricEnabled;
     }
 
-    public String getBiometricPublicKey() {
-        return biometricPublicKey;
+    public boolean isPasskeyEnabled() {
+        return passkeyEnabled;
     }
 
-    public void setBiometricPublicKey(String biometricPublicKey) {
-        this.biometricPublicKey = biometricPublicKey;
+    public void setPasskeyEnabled(boolean passkeyEnabled) {
+        this.passkeyEnabled = passkeyEnabled;
     }
 
     public Instant getCreatedAt() {

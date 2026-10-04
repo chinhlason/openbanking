@@ -10,6 +10,8 @@ public final class InternalAuthHeaders {
     public static final String TRUSTED_DEVICE = "X-Auth-Trusted-Device";
     public static final String ROLES = "X-Auth-Roles";
     public static final String SCOPES = "X-Auth-Scopes";
+    public static final String ENTITLEMENTS = "X-Auth-Entitlements";
+    public static final String ENTITLEMENT_VERSION = "X-Auth-Entitlement-Version";
     public static final String DPOP_VERIFIED = "X-DPoP-Verified";
     public static final String DPOP_JKT = "X-DPoP-Jkt";
     public static final String DPOP_JTI = "X-DPoP-Jti";

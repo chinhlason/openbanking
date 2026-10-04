@@ -12,7 +12,7 @@ import vn.com.truongsonbank.client.customer.application.CustomerOnboardingServic
 import vn.com.truongsonbank.shared.response.ResponseWrapper;
 
 @RestController
-@RequestMapping("/client/api/v1/onboarding")
+@RequestMapping("/v1/onboarding")
 @ResponseWrapper
 class CustomerOnboardingController {
     private final CustomerOnboardingService service;

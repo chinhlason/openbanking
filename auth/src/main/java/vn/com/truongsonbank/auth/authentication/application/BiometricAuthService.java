@@ -4,14 +4,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
-import vn.com.truongsonbank.auth.authentication.adapter.in.web.BiometricChallengeRequest;
 import vn.com.truongsonbank.auth.authentication.adapter.in.web.BiometricChallengeResponse;
 import vn.com.truongsonbank.auth.authentication.adapter.in.web.BiometricEnableRequest;
-import vn.com.truongsonbank.auth.authentication.adapter.in.web.BiometricVerifyRequest;
-import vn.com.truongsonbank.auth.authentication.adapter.in.web.BiometricVerifyResponse;
 import vn.com.truongsonbank.auth.authentication.domain.AuthSession;
-import vn.com.truongsonbank.auth.authentication.domain.BiometricChallengeState;
 import vn.com.truongsonbank.auth.authentication.domain.BiometricEnableChallengeState;
+import vn.com.truongsonbank.auth.authentication.infrastructure.keycloak.KeycloakClient;
 import vn.com.truongsonbank.auth.authentication.infrastructure.persistence.AuthDeviceEntity;
 import vn.com.truongsonbank.auth.authentication.infrastructure.persistence.AuthDeviceRepository;
 import vn.com.truongsonbank.auth.authentication.infrastructure.security.DpopProofVerifier;
@@ -34,23 +31,26 @@ import java.util.Map;
 
 @Service
 public class BiometricAuthService {
-    private static final String PREFIX = "tsb:auth:biometric:challenge:";
     private static final String ENABLE_PREFIX = "tsb:auth:biometric:enable:";
+    private static final String PASSKEY_ENABLE_PREFIX = "tsb:auth:passkey:enable:";
     private static final Duration TTL = Duration.ofSeconds(60);
     private final SecureRandom random = new SecureRandom();
     private final AuthDeviceRepository deviceRepository;
     private final StringRedisTemplate redis;
     private final ObjectMapper objectMapper;
     private final DpopProofVerifier dpopProofVerifier;
+    private final KeycloakClient keycloakClient;
 
     BiometricAuthService(AuthDeviceRepository deviceRepository,
                          StringRedisTemplate redis,
                          ObjectMapper objectMapper,
-                         DpopProofVerifier dpopProofVerifier) {
+                         DpopProofVerifier dpopProofVerifier,
+                         KeycloakClient keycloakClient) {
         this.deviceRepository = deviceRepository;
         this.redis = redis;
         this.objectMapper = objectMapper;
         this.dpopProofVerifier = dpopProofVerifier;
+        this.keycloakClient = keycloakClient;
     }
 
     public BiometricChallengeResponse enableChallenge(AuthSession session, String deviceId) {
@@ -91,68 +91,70 @@ public class BiometricAuthService {
         } catch (JsonProcessingException e) {
             throw new UnauthorizedException();
         }
-        device.setBiometricPublicKey(request.publicKey());
         device.setBiometricEnabled(true);
         deviceRepository.save(device);
+        keycloakClient.enableBiometricCredential(session.username(), deviceId, request.publicKey());
         return Map.of("deviceId", deviceId, "biometricEnabled", true);
     }
 
     public Map<String, Object> disable(AuthSession session, String deviceId) {
         AuthDeviceEntity device = trustedSessionDevice(session, deviceId);
-        device.setBiometricPublicKey(null);
         device.setBiometricEnabled(false);
         deviceRepository.save(device);
+        keycloakClient.disableBiometricCredential(session.username(), deviceId);
         return Map.of("deviceId", deviceId, "biometricEnabled", false);
     }
 
-    public BiometricChallengeResponse challenge(BiometricChallengeRequest request) {
-        if (request == null || isBlank(request.username()) || isBlank(request.deviceId())) {
-            throw new UnauthorizedException();
-        }
-        AuthDeviceEntity device = deviceRepository.findById(request.deviceId()).orElseThrow(UnauthorizedException::new);
-        if (!request.username().equals(device.getUsername()) || !device.isTrusted()
-                || !device.isBiometricEnabled() || isBlank(device.getBiometricPublicKey())) {
-            throw new UnauthorizedException();
-        }
-        String challengeId = "bio_" + token(18);
+    public BiometricChallengeResponse passkeyEnableChallenge(AuthSession session, String deviceId) {
+        trustedSessionDevice(session, deviceId);
+        String challengeId = "passkey_enable_" + token(18);
         String nonce = token(24);
         try {
-            redis.opsForValue().set(PREFIX + challengeId,
-                    objectMapper.writeValueAsString(new BiometricChallengeState(request.username(), request.deviceId(), nonce)),
+            redis.opsForValue().set(PASSKEY_ENABLE_PREFIX + challengeId,
+                    objectMapper.writeValueAsString(new BiometricEnableChallengeState(session.sessionId(), session.username(), deviceId, nonce, session.dpopJkt())),
                     TTL);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException(e);
         }
-        return new BiometricChallengeResponse(challengeId, nonce, TTL.toSeconds(), payload(challengeId, nonce, request.username(), request.deviceId()));
+        return new BiometricChallengeResponse(challengeId, nonce, TTL.toSeconds(), passkeyEnablePayload(challengeId, nonce, session.username(), deviceId));
     }
 
-    public BiometricVerifyResponse verify(BiometricVerifyRequest request) {
-        if (request == null || isBlank(request.challengeId()) || isBlank(request.signature())) {
+    public Map<String, Object> enablePasskey(AuthSession session, String deviceId, BiometricEnableRequest request) {
+        AuthDeviceEntity device = trustedSessionDevice(session, deviceId);
+        if (request == null || isBlank(request.publicKey()) || isBlank(request.challengeId()) || isBlank(request.nonce()) || isBlank(request.signature())) {
             throw new UnauthorizedException();
         }
-        String key = PREFIX + request.challengeId();
+        String key = PASSKEY_ENABLE_PREFIX + request.challengeId();
         String json = redis.opsForValue().get(key);
         redis.delete(key);
         if (json == null) {
             throw new UnauthorizedException();
         }
         try {
-            BiometricChallengeState state = objectMapper.readValue(json, BiometricChallengeState.class);
-            if (!state.username().equals(request.username())
-                    || !state.deviceId().equals(request.deviceId())
-                    || !state.nonce().equals(request.nonce())) {
+            BiometricEnableChallengeState state = objectMapper.readValue(json, BiometricEnableChallengeState.class);
+            if (!session.sessionId().equals(state.sessionId())
+                    || !session.username().equals(state.username())
+                    || !deviceId.equals(state.deviceId())
+                    || !request.nonce().equals(state.nonce())
+                    || !session.dpopJkt().equals(state.dpopJkt())) {
                 throw new UnauthorizedException();
             }
-            AuthDeviceEntity device = deviceRepository.findById(request.deviceId()).orElseThrow(UnauthorizedException::new);
-            if (!request.username().equals(device.getUsername()) || !device.isTrusted()
-                    || !device.isBiometricEnabled() || isBlank(device.getBiometricPublicKey())) {
-                throw new UnauthorizedException();
-            }
-            verifySignature(device.getBiometricPublicKey(), payload(request.challengeId(), request.nonce(), request.username(), request.deviceId()), request.signature());
-            return new BiometricVerifyResponse(request.username(), request.deviceId(), true);
+            verifySignature(request.publicKey(), passkeyEnablePayload(request.challengeId(), request.nonce(), session.username(), deviceId), request.signature());
         } catch (JsonProcessingException e) {
             throw new UnauthorizedException();
         }
+        device.setPasskeyEnabled(true);
+        deviceRepository.save(device);
+        keycloakClient.enablePasskeyCredential(session.username(), deviceId, request.publicKey());
+        return Map.of("deviceId", deviceId, "passkeyEnabled", true);
+    }
+
+    public Map<String, Object> disablePasskey(AuthSession session, String deviceId) {
+        AuthDeviceEntity device = trustedSessionDevice(session, deviceId);
+        device.setPasskeyEnabled(false);
+        deviceRepository.save(device);
+        keycloakClient.disablePasskeyCredential(session.username(), deviceId);
+        return Map.of("deviceId", deviceId, "passkeyEnabled", false);
     }
 
     private AuthDeviceEntity trustedSessionDevice(AuthSession session, String deviceId) {
@@ -220,6 +222,10 @@ public class BiometricAuthService {
 
     private String enablePayload(String challengeId, String nonce, String username, String deviceId) {
         return "enable." + payload(challengeId, nonce, username, deviceId);
+    }
+
+    private String passkeyEnablePayload(String challengeId, String nonce, String username, String deviceId) {
+        return "passkey.enable." + payload(challengeId, nonce, username, deviceId);
     }
 
     private String token(int bytes) {

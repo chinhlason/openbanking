@@ -42,6 +42,8 @@ public class AuthHeaderSigner {
         put(headers, InternalAuthHeaders.TRUSTED_DEVICE, String.valueOf(context.trustedDevice()));
         put(headers, InternalAuthHeaders.ROLES, String.join(",", context.roles()));
         put(headers, InternalAuthHeaders.SCOPES, String.join(",", context.scopes()));
+        put(headers, InternalAuthHeaders.ENTITLEMENTS, String.join(",", context.entitlements()));
+        put(headers, InternalAuthHeaders.ENTITLEMENT_VERSION, String.valueOf(context.entitlementVersion()));
         put(headers, InternalAuthHeaders.DPOP_VERIFIED, String.valueOf(context.dpopVerified()));
         put(headers, InternalAuthHeaders.DPOP_JKT, context.dpopJkt());
         put(headers, InternalAuthHeaders.DPOP_JTI, context.dpopJti());

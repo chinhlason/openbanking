@@ -54,8 +54,8 @@ final class CustomerOnboardingApi {
         try await post(baseURL: baseURL, path: "/onboarding/\(onboardingId)/otp/verify", body: OtpBody(otp: otp), dpop: false)
     }
 
-    func verifyQr(baseURL: String, onboardingId: String) async throws -> OnboardingViewResponse {
-        try await post(baseURL: baseURL, path: "/onboarding/\(onboardingId)/identity/qr", body: QrBody(), dpop: false)
+    func verifyQr(baseURL: String, onboardingId: String, rawQr: String) async throws -> OnboardingViewResponse {
+        try await post(baseURL: baseURL, path: "/onboarding/\(onboardingId)/identity/qr", body: try QrBody(rawQr: rawQr), dpop: false)
     }
 
     func verifyNfc(baseURL: String, onboardingId: String) async throws -> OnboardingViewResponse {
@@ -227,14 +227,93 @@ struct OtpBody: Encodable {
 }
 
 struct QrBody: Encodable {
-    let cccd = "001201000123"
-    let oldCccd = "012345678"
-    let fullName = "NGUYEN VAN A"
-    let dob = "2001-01-01"
-    let gender = "M"
-    let address = "Ha Noi"
-    let issueDate = "2022-01-01"
-    let rawQr = "001201000123|012345678|NGUYEN VAN A|20010101|M|Ha Noi|20220101"
+    let cccd: String
+    let oldCccd: String
+    let fullName: String
+    let dob: String
+    let gender: String
+    let address: String
+    let issueDate: String
+    let rawQr: String
+
+    init(rawQr: String) throws {
+        let text = rawQr.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let values = Self.parseJson(text) {
+            self.cccd = try Self.required(values, ["cccd", "id", "idnumber", "identitynumber", "documentnumber"])
+            self.oldCccd = Self.optional(values, ["oldcccd", "oldid", "oldidnumber", "cmnd"]) ?? ""
+            self.fullName = try Self.required(values, ["fullname", "name", "hoten"])
+            self.dob = Self.normalizedDate(Self.optional(values, ["dob", "birthday", "dateofbirth", "ngaysinh"]) ?? "")
+            self.gender = Self.optional(values, ["gender", "sex", "gioitinh"]) ?? ""
+            self.address = Self.optional(values, ["address", "residentaddress", "recentlocation", "diachi"]) ?? ""
+            self.issueDate = Self.normalizedDate(Self.optional(values, ["issuedate", "issue_date", "ngaycap"]) ?? "")
+            self.rawQr = text
+            return
+        }
+
+        let parts = text.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard parts.count >= 7, !parts[0].isEmpty, !parts[2].isEmpty else {
+            throw AuthApiError.http("QR CCCD không trả dữ liệu hợp lệ")
+        }
+        self.cccd = parts[0]
+        self.oldCccd = parts[1]
+        self.fullName = parts[2]
+        self.dob = Self.normalizedDate(parts[3])
+        self.gender = parts[4]
+        self.address = parts[5]
+        self.issueDate = Self.normalizedDate(parts[6])
+        self.rawQr = text
+    }
+
+    private static func parseJson(_ text: String) -> [String: String]? {
+        guard let data = text.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) else {
+            return nil
+        }
+        var values: [String: String] = [:]
+        flatten(json, into: &values)
+        return values.isEmpty ? nil : values
+    }
+
+    private static func flatten(_ value: Any, into values: inout [String: String]) {
+        if let dict = value as? [String: Any] {
+            for (key, item) in dict {
+                let normalizedKey = key.lowercased().replacingOccurrences(of: "_", with: "")
+                if let string = item as? String, !string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    values[normalizedKey] = string
+                } else if let number = item as? NSNumber {
+                    values[normalizedKey] = number.stringValue
+                } else {
+                    flatten(item, into: &values)
+                }
+            }
+        } else if let array = value as? [Any] {
+            array.forEach { flatten($0, into: &values) }
+        }
+    }
+
+    private static func required(_ values: [String: String], _ keys: [String]) throws -> String {
+        if let value = optional(values, keys) {
+            return value
+        }
+        throw AuthApiError.http("QR CCCD thiếu thông tin bắt buộc")
+    }
+
+    private static func optional(_ values: [String: String], _ keys: [String]) -> String? {
+        keys.lazy
+            .map { $0.lowercased().replacingOccurrences(of: "_", with: "") }
+            .compactMap { values[$0]?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
+    }
+
+    private static func normalizedDate(_ value: String) -> String {
+        let digits = value.filter(\.isNumber)
+        guard digits.count == 8 else { return value }
+        let first4 = Int(digits.prefix(4)) ?? 0
+        if (1900...2099).contains(first4) {
+            return "\(digits.prefix(4))-\(digits.dropFirst(4).prefix(2))-\(digits.suffix(2))"
+        }
+        return "\(digits.suffix(4))-\(digits.dropFirst(2).prefix(2))-\(digits.prefix(2))"
+    }
 }
 
 struct NfcBody: Encodable {

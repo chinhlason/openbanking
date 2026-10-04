@@ -14,6 +14,8 @@ final class InternalAuthCanonicalizer {
             InternalAuthHeaders.TRUSTED_DEVICE,
             InternalAuthHeaders.ROLES,
             InternalAuthHeaders.SCOPES,
+            InternalAuthHeaders.ENTITLEMENTS,
+            InternalAuthHeaders.ENTITLEMENT_VERSION,
             InternalAuthHeaders.DPOP_VERIFIED,
             InternalAuthHeaders.DPOP_JKT,
             InternalAuthHeaders.DPOP_JTI

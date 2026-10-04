@@ -3,8 +3,10 @@ package vn.com.truongsonbank.auth.authentication.application;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
 import vn.com.truongsonbank.auth.authentication.adapter.in.web.DeviceRequest;
 import vn.com.truongsonbank.auth.authentication.adapter.in.web.DeviceResponse;
 import vn.com.truongsonbank.auth.authentication.adapter.in.web.SessionResponse;
@@ -13,10 +15,13 @@ import vn.com.truongsonbank.auth.authentication.config.AuthProperties;
 import vn.com.truongsonbank.auth.authentication.domain.AuthSession;
 import vn.com.truongsonbank.auth.authentication.infrastructure.persistence.AuthDeviceEntity;
 import vn.com.truongsonbank.auth.authentication.infrastructure.persistence.AuthDeviceRepository;
+import vn.com.truongsonbank.auth.authentication.infrastructure.persistence.AuthCustomerIdentityEntity;
+import vn.com.truongsonbank.auth.authentication.infrastructure.persistence.AuthCustomerIdentityRepository;
 import vn.com.truongsonbank.auth.authentication.infrastructure.persistence.AuthSessionEntity;
 import vn.com.truongsonbank.auth.authentication.infrastructure.persistence.AuthSessionRepository;
 import vn.com.truongsonbank.auth.authentication.infrastructure.security.DpopProofVerifier;
 import vn.com.truongsonbank.shared.exception.UnauthorizedException;
+import vn.com.truongsonbank.shared.response.TsbResponse;
 
 import java.security.SecureRandom;
 import java.time.Instant;
@@ -34,19 +39,24 @@ public class AuthSessionService {
     private final AuthDeviceRepository deviceRepository;
     private final AuthSessionRepository sessionRepository;
     private final DpopProofVerifier dpopProofVerifier;
+    private final AuthCustomerIdentityRepository identityRepository;
+    private final RestClient common;
 
     AuthSessionService(StringRedisTemplate redis,
                        ObjectMapper objectMapper,
                        AuthProperties properties,
                        AuthDeviceRepository deviceRepository,
                        AuthSessionRepository sessionRepository,
-                       DpopProofVerifier dpopProofVerifier) {
+                       DpopProofVerifier dpopProofVerifier,
+                       AuthCustomerIdentityRepository identityRepository) {
         this.redis = redis;
         this.objectMapper = objectMapper;
         this.properties = properties;
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
         this.dpopProofVerifier = dpopProofVerifier;
+        this.identityRepository = identityRepository;
+        this.common = RestClient.builder().baseUrl(properties.getCommonBaseUrl()).build();
     }
 
     public SessionResponse create(Jwt jwt, DeviceRequest deviceRequest, String dpopJkt) {
@@ -55,14 +65,17 @@ public class AuthSessionService {
         String sessionId = newSessionId();
         String username = username(jwt);
         AuthDeviceEntity device = upsertDevice(jwt.getSubject(), username, deviceRequest, dpopJkt, now);
+        CustomerEntitlements entitlements = customerEntitlements(jwt.getSubject());
         AuthSession session = new AuthSession(
                 sessionId,
                 jwt.getSubject(),
+                entitlements.customerId(),
                 username,
                 device.getDeviceId(),
                 dpopJkt,
                 device.isTrusted(),
                 List.of(),
+                entitlements.servicePackages(),
                 now,
                 expiresAt
         );
@@ -82,14 +95,17 @@ public class AuthSessionService {
         AuthDeviceEntity device = upsertDevice(subject, username, deviceRequest, dpopJkt, now);
         device.setTrusted(true);
         deviceRepository.save(device);
+        CustomerEntitlements entitlements = customerEntitlements(subject);
         AuthSession session = new AuthSession(
                 sessionId,
                 subject,
+                entitlements.customerId(),
                 username,
                 device.getDeviceId(),
                 dpopJkt,
                 true,
                 List.of(),
+                entitlements.servicePackages(),
                 now,
                 expiresAt
         );
@@ -153,11 +169,13 @@ public class AuthSessionService {
         AuthSession trustedSession = new AuthSession(
                 session.sessionId(),
                 session.subject(),
+                session.customerId(),
                 session.username(),
                 session.deviceId(),
                 session.dpopJkt(),
                 true,
                 session.roles(),
+                session.servicePackages(),
                 session.createdAt(),
                 session.expiresAt()
         );
@@ -182,11 +200,13 @@ public class AuthSessionService {
         AuthSession renewed = new AuthSession(
                 session.sessionId(),
                 session.subject(),
+                session.customerId(),
                 session.username(),
                 session.deviceId(),
                 session.dpopJkt(),
                 session.trustedDevice(),
                 session.roles(),
+                session.servicePackages(),
                 session.createdAt(),
                 Instant.now().plus(properties.getSessionTtl())
         );
@@ -256,16 +276,51 @@ public class AuthSessionService {
         }
     }
 
+    public SessionResponse bindCustomer(String sessionId, String customerId) {
+        if (customerId == null || customerId.isBlank()) {
+            throw new UnauthorizedException();
+        }
+        AuthSession current = read(sessionId);
+        AuthCustomerIdentityEntity identity = identityRepository.findById(current.subject())
+                .orElseGet(AuthCustomerIdentityEntity::new);
+        identity.setSubject(current.subject());
+        identity.setCustomerId(customerId);
+        identity.setUpdatedAt(Instant.now());
+        identityRepository.save(identity);
+        AuthSession updated = new AuthSession(current.sessionId(), current.subject(), customerId, current.username(),
+                current.deviceId(), current.dpopJkt(), current.trustedDevice(), current.roles(),
+                loadServicePackages(customerId), current.createdAt(), current.expiresAt());
+        saveRedisSession(updated);
+        return toResponse(updated);
+    }
+
+    private CustomerEntitlements customerEntitlements(String subject) {
+        return identityRepository.findById(subject)
+                .map(identity -> new CustomerEntitlements(identity.getCustomerId(), loadServicePackages(identity.getCustomerId())))
+                .orElseGet(() -> new CustomerEntitlements(null, List.of()));
+    }
+
+    private List<String> loadServicePackages(String customerId) {
+        TsbResponse<List<String>> response = common.get()
+                .uri("/entitlements/admin/customers/{customerId}/service-packages", customerId)
+                .header("X-Config-Admin-Key", properties.getCommonAdminKey())
+                .retrieve()
+                .body(new ParameterizedTypeReference<>() {});
+        return response == null || response.data() == null ? List.of() : response.data();
+    }
+
     private SessionResponse toResponse(AuthSession session) {
         return new SessionResponse(
                 session.sessionId(),
                 properties.getSessionTtl().toSeconds(),
                 session.expiresAt(),
                 session.subject(),
+                session.customerId(),
                 session.username(),
                 session.deviceId(),
                 session.trustedDevice(),
-                session.roles()
+                session.roles(),
+                session.servicePackages()
         );
     }
 
@@ -283,4 +338,6 @@ public class AuthSessionService {
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
     }
+
+    private record CustomerEntitlements(String customerId, List<String> servicePackages) { }
 }

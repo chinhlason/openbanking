@@ -9,6 +9,8 @@ public class AuthProperties {
     private Duration sessionTtl = Duration.ofMinutes(10);
     private String biometricGrantSecret = "local-biometric-grant-secret";
     private String onboardingInternalSecret = "local-onboarding-secret";
+    private String commonBaseUrl = "http://localhost:8083/common/api";
+    private String commonAdminKey = "local-admin-key";
     private final Keycloak keycloak = new Keycloak();
 
     public Duration getSessionTtl() {
@@ -33,6 +35,22 @@ public class AuthProperties {
 
     public void setOnboardingInternalSecret(String onboardingInternalSecret) {
         this.onboardingInternalSecret = onboardingInternalSecret;
+    }
+
+    public String getCommonBaseUrl() {
+        return commonBaseUrl;
+    }
+
+    public void setCommonBaseUrl(String commonBaseUrl) {
+        this.commonBaseUrl = commonBaseUrl;
+    }
+
+    public String getCommonAdminKey() {
+        return commonAdminKey;
+    }
+
+    public void setCommonAdminKey(String commonAdminKey) {
+        this.commonAdminKey = commonAdminKey;
     }
 
     public Keycloak getKeycloak() {

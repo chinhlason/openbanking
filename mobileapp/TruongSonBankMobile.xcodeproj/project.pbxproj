@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 60;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -14,7 +14,29 @@
 		111111111111111111111115 /* BiometricIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 211111111111111111111117 /* BiometricIdentity.swift */; };
 		111111111111111111111116 /* ApiCallLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 211111111111111111111118 /* ApiCallLog.swift */; };
 		111111111111111111111117 /* CustomerOnboardingApi.swift in Sources */ = {isa = PBXBuildFile; fileRef = 211111111111111111111119 /* CustomerOnboardingApi.swift */; };
+		111111111111111111111120 /* ICSdkEKYC.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 211111111111111111111120 /* ICSdkEKYC.xcframework */; };
+		111111111111111111111121 /* eKYCLib.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 211111111111111111111121 /* eKYCLib.xcframework */; };
+		111111111111111111111124 /* ICSdkEKYC.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 211111111111111111111120 /* ICSdkEKYC.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		111111111111111111111125 /* eKYCLib.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 211111111111111111111121 /* eKYCLib.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		111111111111111111111128 /* VnptSdkConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 211111111111111111111125 /* VnptSdkConfig.swift */; };
+		111111111111111111111129 /* VnptSdk.env in Resources */ = {isa = PBXBuildFile; fileRef = 211111111111111111111126 /* VnptSdk.env */; };
+		111111111111111111111130 /* VnptSdkPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 211111111111111111111128 /* VnptSdkPresenter.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		611111111111111111111113 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				111111111111111111111124 /* ICSdkEKYC.xcframework in Embed Frameworks */,
+				111111111111111111111125 /* eKYCLib.xcframework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		211111111111111111111111 /* TruongSonBankMobileApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TruongSonBankMobileApp.swift; sourceTree = "<group>"; };
@@ -26,6 +48,15 @@
 		211111111111111111111117 /* BiometricIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricIdentity.swift; sourceTree = "<group>"; };
 		211111111111111111111118 /* ApiCallLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApiCallLog.swift; sourceTree = "<group>"; };
 		211111111111111111111119 /* CustomerOnboardingApi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerOnboardingApi.swift; sourceTree = "<group>"; };
+		211111111111111111111120 /* ICSdkEKYC.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = ICSdkEKYC.xcframework; path = ../intergation/SDK_ekyc_iOS_v3.7.1/ICSdkEKYC.xcframework; sourceTree = SOURCE_ROOT; };
+		211111111111111111111121 /* eKYCLib.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = eKYCLib.xcframework; path = ../intergation/SDK_ekyc_iOS_v3.7.1/eKYCLib.xcframework; sourceTree = SOURCE_ROOT; };
+		211111111111111111111122 /* ICNFCCardReader.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = ICNFCCardReader.xcframework; path = ../intergation/ICNFCCardReader_xcFramework_xcode26.1_version2.2.8_260603/ICNFCCardReader.xcframework; sourceTree = SOURCE_ROOT; };
+		211111111111111111111123 /* OpenSSL.xcframework */ = {isa = PBXFileReference; expectedSignature = "AppleDeveloperProgram:67RAULRX93:Marcin Krzyzanowski"; lastKnownFileType = wrapper.xcframework; name = OpenSSL.xcframework; path = ../intergation/ICNFCCardReader_xcFramework_xcode26.1_version2.2.8_260603/OpenSSL.xcframework; sourceTree = SOURCE_ROOT; };
+		211111111111111111111124 /* TruongSonBankMobile.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TruongSonBankMobile.entitlements; sourceTree = "<group>"; };
+		211111111111111111111125 /* VnptSdkConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VnptSdkConfig.swift; sourceTree = "<group>"; };
+		211111111111111111111126 /* VnptSdk.env */ = {isa = PBXFileReference; lastKnownFileType = text; path = VnptSdk.env; sourceTree = "<group>"; };
+		211111111111111111111127 /* VnptSdk.env.example */ = {isa = PBXFileReference; lastKnownFileType = text; path = VnptSdk.env.example; sourceTree = "<group>"; };
+		211111111111111111111128 /* VnptSdkPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VnptSdkPresenter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -33,6 +64,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				111111111111111111111120 /* ICSdkEKYC.xcframework in Frameworks */,
+				111111111111111111111121 /* eKYCLib.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -57,7 +90,13 @@
 				211111111111111111111118 /* ApiCallLog.swift */,
 				211111111111111111111116 /* DeviceIdentity.swift */,
 				211111111111111111111117 /* BiometricIdentity.swift */,
+				211111111111111111111125 /* VnptSdkConfig.swift */,
+				211111111111111111111128 /* VnptSdkPresenter.swift */,
+				211111111111111111111126 /* VnptSdk.env */,
+				211111111111111111111127 /* VnptSdk.env.example */,
 				211111111111111111111114 /* Info.plist */,
+				211111111111111111111124 /* TruongSonBankMobile.entitlements */,
+				411111111111111111111114 /* VNPT SDK */,
 			);
 			path = TruongSonBankMobile;
 			sourceTree = "<group>";
@@ -70,6 +109,17 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		411111111111111111111114 /* VNPT SDK */ = {
+			isa = PBXGroup;
+			children = (
+				211111111111111111111120 /* ICSdkEKYC.xcframework */,
+				211111111111111111111121 /* eKYCLib.xcframework */,
+				211111111111111111111122 /* ICNFCCardReader.xcframework */,
+				211111111111111111111123 /* OpenSSL.xcframework */,
+			);
+			name = "VNPT SDK";
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -80,6 +130,7 @@
 				611111111111111111111111 /* Sources */,
 				311111111111111111111111 /* Frameworks */,
 				611111111111111111111112 /* Resources */,
+				611111111111111111111113 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -128,6 +179,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				111111111111111111111129 /* VnptSdk.env in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -145,6 +197,8 @@
 				111111111111111111111116 /* ApiCallLog.swift in Sources */,
 				111111111111111111111114 /* DeviceIdentity.swift in Sources */,
 				111111111111111111111115 /* BiometricIdentity.swift in Sources */,
+				111111111111111111111128 /* VnptSdkConfig.swift in Sources */,
+				111111111111111111111130 /* VnptSdkPresenter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -269,10 +323,12 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "$(TSB_CODE_SIGN_ENTITLEMENTS)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = AS5W7F2Y54;
+				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = arm64;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = TruongSonBankMobile/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -293,10 +349,12 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "$(TSB_CODE_SIGN_ENTITLEMENTS)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = AS5W7F2Y54;
+				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = arm64;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = TruongSonBankMobile/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;

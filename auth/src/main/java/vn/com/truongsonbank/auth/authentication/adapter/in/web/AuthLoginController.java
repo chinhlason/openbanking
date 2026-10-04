@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import vn.com.truongsonbank.auth.authentication.application.AuthSessionService;
 import vn.com.truongsonbank.auth.authentication.application.BiometricAuthService;
+import vn.com.truongsonbank.auth.authentication.application.LoginChallengeService;
 import vn.com.truongsonbank.auth.authentication.config.AuthProperties;
 import vn.com.truongsonbank.auth.authentication.domain.AuthSession;
 import vn.com.truongsonbank.auth.authentication.infrastructure.keycloak.KeycloakClient;
@@ -30,6 +31,7 @@ public class AuthLoginController {
     private final AuthSessionService sessionService;
     private final DpopProofVerifier dpopProofVerifier;
     private final BiometricAuthService biometricAuthService;
+    private final LoginChallengeService loginChallengeService;
     private final AuthProperties authProperties;
 
     AuthLoginController(KeycloakClient keycloakClient,
@@ -37,20 +39,27 @@ public class AuthLoginController {
                         AuthSessionService sessionService,
                         DpopProofVerifier dpopProofVerifier,
                         BiometricAuthService biometricAuthService,
+                        LoginChallengeService loginChallengeService,
                         AuthProperties authProperties) {
         this.keycloakClient = keycloakClient;
         this.tokenValidator = tokenValidator;
         this.sessionService = sessionService;
         this.dpopProofVerifier = dpopProofVerifier;
         this.biometricAuthService = biometricAuthService;
+        this.loginChallengeService = loginChallengeService;
         this.authProperties = authProperties;
     }
 
-    @PostMapping("/login/pin")
-    SessionResponse login(@RequestHeader("DPoP") String proof,
-                          @RequestBody LoginRequest request,
-                          HttpServletRequest httpRequest) {
-        throw new UnauthorizedException();
+    @PostMapping("/login/init")
+    LoginChallengeResponse loginInit(@RequestBody LoginInitRequest request) {
+        return loginChallengeService.init(request);
+    }
+
+    @PostMapping("/login/verify")
+    SessionResponse loginVerify(@RequestHeader("DPoP") String proof,
+                                @RequestBody LoginVerifyRequest request,
+                                HttpServletRequest httpRequest) {
+        return loginChallengeService.verify(request, proof, httpRequest);
     }
 
     @PostMapping("/token/exchange")
@@ -115,7 +124,7 @@ public class AuthLoginController {
                                 HttpServletRequest request) {
         AuthSession session = sessionService.read(sessionId);
         dpopProofVerifier.verify(session, request.getMethod(), request.getRequestURI(), proof);
-        keycloakClient.passwordGrant(session.username(), trustRequest.pin());
+        keycloakClient.pinGrant(session.username(), trustRequest.pin(), trustRequest.keycloakDpopProof());
         return sessionService.trustDevice(session, deviceId);
     }
 
@@ -160,18 +169,35 @@ public class AuthLoginController {
         return biometricAuthService.disable(session, deviceId);
     }
 
-    @PostMapping("/biometric/challenge")
-    BiometricChallengeResponse biometricChallenge(@RequestBody BiometricChallengeRequest request) {
-        return biometricAuthService.challenge(request);
+    @PostMapping("/devices/{deviceId}/passkey/enable")
+    Map<String, Object> enablePasskey(@RequestHeader("X-Session-Id") String sessionId,
+                                      @RequestHeader("DPoP") String proof,
+                                      @org.springframework.web.bind.annotation.PathVariable String deviceId,
+                                      @RequestBody BiometricEnableRequest enableRequest,
+                                      HttpServletRequest request) {
+        AuthSession session = sessionService.read(sessionId);
+        dpopProofVerifier.verify(session, request.getMethod(), request.getRequestURI(), proof);
+        return biometricAuthService.enablePasskey(session, deviceId, enableRequest);
     }
 
-    @PostMapping("/internal/biometric/verify")
-    BiometricVerifyResponse verifyBiometric(@RequestHeader("X-Keycloak-Biometric-Secret") String secret,
-                                            @RequestBody BiometricVerifyRequest request) {
-        if (!authProperties.getBiometricGrantSecret().equals(secret)) {
-            throw new UnauthorizedException();
-        }
-        return biometricAuthService.verify(request);
+    @PostMapping("/devices/{deviceId}/passkey/enable/challenge")
+    BiometricChallengeResponse passkeyEnableChallenge(@RequestHeader("X-Session-Id") String sessionId,
+                                                     @RequestHeader("DPoP") String proof,
+                                                     @org.springframework.web.bind.annotation.PathVariable String deviceId,
+                                                     HttpServletRequest request) {
+        AuthSession session = sessionService.read(sessionId);
+        dpopProofVerifier.verify(session, request.getMethod(), request.getRequestURI(), proof);
+        return biometricAuthService.passkeyEnableChallenge(session, deviceId);
+    }
+
+    @PostMapping("/devices/{deviceId}/passkey/disable")
+    Map<String, Object> disablePasskey(@RequestHeader("X-Session-Id") String sessionId,
+                                      @RequestHeader("DPoP") String proof,
+                                      @org.springframework.web.bind.annotation.PathVariable String deviceId,
+                                      HttpServletRequest request) {
+        AuthSession session = sessionService.read(sessionId);
+        dpopProofVerifier.verify(session, request.getMethod(), request.getRequestURI(), proof);
+        return biometricAuthService.disablePasskey(session, deviceId);
     }
 
     @PostMapping("/internal/onboarding/complete")
@@ -184,6 +210,25 @@ public class AuthLoginController {
         DpopProofVerifier.DpopProof dpop = dpopProofVerifier.verifyRequest(request.dpopHtm(), request.dpopHtu(), proof);
         String subject = keycloakClient.createUserWithPinIfAbsent(request.username(), request.pin());
         return sessionService.createTrusted(subject, request.username(), request.device(), dpop.jkt());
+    }
+
+    @PostMapping("/internal/sessions/introspect")
+    AuthSession introspect(@RequestHeader("X-Internal-Onboarding-Secret") String secret,
+                           @RequestBody SessionIntrospectRequest request) {
+        if (!authProperties.getOnboardingInternalSecret().equals(secret) || request == null) {
+            throw new UnauthorizedException();
+        }
+        return sessionService.read(request.sessionId());
+    }
+
+    @PostMapping("/internal/sessions/{sessionId}/customer")
+    SessionResponse bindCustomer(@RequestHeader("X-Internal-Onboarding-Secret") String secret,
+                                 @org.springframework.web.bind.annotation.PathVariable String sessionId,
+                                 @RequestBody CustomerBindingRequest request) {
+        if (!authProperties.getOnboardingInternalSecret().equals(secret) || request == null) {
+            throw new UnauthorizedException();
+        }
+        return sessionService.bindCustomer(sessionId, request.customerId());
     }
 
     @PostMapping("/keycloak/token/validate")
@@ -224,4 +269,6 @@ public class AuthLoginController {
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
     }
+
+    private record CustomerBindingRequest(String customerId) { }
 }

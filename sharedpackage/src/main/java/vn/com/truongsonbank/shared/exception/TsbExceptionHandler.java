@@ -14,6 +14,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import vn.com.truongsonbank.shared.response.ResponseWrapperFilter;
 import vn.com.truongsonbank.shared.response.TsbResponse;
 import vn.com.truongsonbank.shared.response.TraceIdProvider;
@@ -57,6 +58,14 @@ class TsbExceptionHandler {
         ErrorDescriptor error = CommonErrors.BAD_REQUEST;
         log.warn("Bad request body: code={}, message={}, traceId={}",
                 error.code(), exception.getMessage(), traceIdProvider.resolve(request), exception);
+        return response(error.httpStatus(), error.code(), error.defaultMessage(), request);
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    ResponseEntity<TsbResponse<Object>> handleNoResource(NoResourceFoundException exception, HttpServletRequest request) {
+        ErrorDescriptor error = CommonErrors.NOT_FOUND;
+        log.warn("Resource not found: code={}, message={}, traceId={}",
+                error.code(), exception.getMessage(), traceIdProvider.resolve(request));
         return response(error.httpStatus(), error.code(), error.defaultMessage(), request);
     }
 

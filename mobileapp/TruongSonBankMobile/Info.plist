@@ -18,6 +18,10 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>TSBBackendHost</key>
+	<string>$(TSB_BACKEND_HOST)</string>
+	<key>TSBKeycloakHost</key>
+	<string>$(TSB_KEYCLOAK_HOST)</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
@@ -25,5 +29,15 @@
 	</dict>
 	<key>NSFaceIDUsageDescription</key>
 	<string>TruongSonBank dùng FaceID để ký challenge đăng nhập sinh trắc học.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>TruongSonBank dùng camera để quét giấy tờ và xác thực eKYC.</string>
+	<key>NFCReaderUsageDescription</key>
+	<string>TruongSonBank dùng NFC để đọc CCCD gắn chip trong luồng eKYC.</string>
+	<key>com.apple.developer.nfc.readersession.iso7816.select-identifiers</key>
+	<array>
+		<string>A0000002471001</string>
+		<string>A0000002472001</string>
+		<string>00000000000000</string>
+	</array>
 </dict>
 </plist>

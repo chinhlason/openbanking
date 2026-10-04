@@ -46,6 +46,8 @@ tsb:
       auth-base-url: ${AUTH_BASE_URL:http://localhost:8084/auth/api}
       core-base-url: ${CORE_BASE_URL:http://localhost:8085}
       auth-internal-secret: ${AUTH_ONBOARDING_INTERNAL_SECRET:local-onboarding-secret}
+      entitlement-admin-key: ${ENTITLEMENT_ADMIN_KEY:local-admin-key}
+      default-service-package: ${DEFAULT_SERVICE_PACKAGE:STANDARD}
       session-ttl: 15m
       otp-ttl: 5m
   config:
@@ -59,6 +61,19 @@ tsb:
       enabled: true
       channel: tsb:config:changed
   shared:
+    internal-auth:
+      enabled: true
+      signer-enabled: false
+      verifier-enabled: true
+      hmac-secret: ${TSB_SHARED_INTERNAL_AUTH_HMAC_SECRET:local-dev-secret}
+      issuer: bff
+      max-skew: 60s
+      excluded-paths:
+        - /actuator
+        - /v3/api-docs
+        - /swagger-ui
+        - /swagger-ui.html
+        - /v1/onboarding
     tracing:
       export-enabled: true
       service-name: client
@@ -111,7 +126,7 @@ tsb:
     logging:
       request:
         enabled: true
-        include-headers: false
+        include-headers: true
         include-query-string: true
         include-body: true
         max-body-length: 4096

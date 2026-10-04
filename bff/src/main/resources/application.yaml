@@ -16,7 +16,6 @@ spring:
                 - Path=/client/**
               filters:
                 - StripPrefix=3
-                - PrefixPath=/client/api
             - id: common
               uri: ${BFF_ROUTE_COMMON_URI:http://localhost:8083}
               predicates:
@@ -38,12 +37,22 @@ server:
     context-path: /bff/api
 
 management:
+  endpoint:
+    health:
+      show-details: always
   endpoints:
     web:
       exposure:
         include: "health,metrics,prometheus"
 
 tsb:
+  bff:
+    entitlement:
+      common-url: ${BFF_ENTITLEMENT_COMMON_URL:http://localhost:8083/common/api}
+      admin-key: ${BFF_ENTITLEMENT_ADMIN_KEY:local-admin-key}
+    auth:
+      base-url: ${BFF_AUTH_BASE_URL:http://localhost:8084/auth/api}
+      internal-secret: ${AUTH_ONBOARDING_INTERNAL_SECRET:local-onboarding-secret}
   shared:
     common-config:
       enabled: false
@@ -88,10 +97,6 @@ tsb:
           service-id: auth
           context-path: /auth/api
           base-url: http://localhost:8084/auth/api
-        core:
-          service-id: core
-          context-path: /core/api
-          base-url: http://localhost:8085/core/api
         client:
           service-id: client
           context-path: /client/api

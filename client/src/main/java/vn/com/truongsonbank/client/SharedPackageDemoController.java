@@ -22,6 +22,7 @@ import vn.com.truongsonbank.shared.kafka.TsbKafkaDlqStatus;
 import vn.com.truongsonbank.shared.kafka.TsbKafkaOutbox;
 import vn.com.truongsonbank.shared.kafka.TsbKafkaPublisher;
 import vn.com.truongsonbank.shared.response.ResponseWrapper;
+import vn.com.truongsonbank.shared.security.RequireEntitlement;
 import vn.com.truongsonbank.shared.sequence.TsbSequenceGenerator;
 import vn.com.truongsonbank.shared.validation.InputValidator;
 import vn.com.truongsonbank.grpc.demo.DemoEchoServiceGrpc;
@@ -65,6 +66,13 @@ class SharedPackageDemoController {
     @GetMapping("/shared-test/wrapped")
     Map<String, String> wrapped() {
         return Map.of("service", "client");
+    }
+
+    @ResponseWrapper
+    @RequireEntitlement("TEST2")
+    @GetMapping("/shared-test/entitlement/test2")
+    Map<String, Object> entitlementTest2() {
+        return Map.of("allowed", true, "operation", "TEST2", "service", "client");
     }
 
     @GetMapping("/shared-test/error")

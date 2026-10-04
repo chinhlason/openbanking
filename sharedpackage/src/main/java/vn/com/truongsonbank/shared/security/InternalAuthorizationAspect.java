@@ -14,7 +14,8 @@ import java.util.Set;
 @Aspect
 class InternalAuthorizationAspect {
     @Around("@within(vn.com.truongsonbank.shared.security.RequireRole) || @annotation(vn.com.truongsonbank.shared.security.RequireRole) || "
-            + "@within(vn.com.truongsonbank.shared.security.RequireScope) || @annotation(vn.com.truongsonbank.shared.security.RequireScope)")
+            + "@within(vn.com.truongsonbank.shared.security.RequireScope) || @annotation(vn.com.truongsonbank.shared.security.RequireScope) || "
+            + "@within(vn.com.truongsonbank.shared.security.RequireEntitlement) || @annotation(vn.com.truongsonbank.shared.security.RequireEntitlement)")
     public Object authorize(ProceedingJoinPoint joinPoint) throws Throwable {
         Method method = ((MethodSignature) joinPoint.getSignature()).getMethod();
         Class<?> type = joinPoint.getTarget().getClass();
@@ -24,10 +25,15 @@ class InternalAuthorizationAspect {
                 AnnotatedElementUtils.findMergedAnnotation(type, RequireRole.class));
         RequireScope scope = first(AnnotatedElementUtils.findMergedAnnotation(method, RequireScope.class),
                 AnnotatedElementUtils.findMergedAnnotation(type, RequireScope.class));
+        RequireEntitlement entitlement = first(AnnotatedElementUtils.findMergedAnnotation(method, RequireEntitlement.class),
+                AnnotatedElementUtils.findMergedAnnotation(type, RequireEntitlement.class));
         if (role != null && !matches(context.roles(), role.value(), role.mode())) {
             throw new TsbException(InternalAuthErrors.FORBIDDEN);
         }
         if (scope != null && !matches(context.scopes(), scope.value(), scope.mode())) {
+            throw new TsbException(InternalAuthErrors.FORBIDDEN);
+        }
+        if (entitlement != null && !matches(context.entitlements(), entitlement.value(), entitlement.mode())) {
             throw new TsbException(InternalAuthErrors.FORBIDDEN);
         }
         return joinPoint.proceed();
