@@ -1,66 +1,67 @@
 # TruongSonBank
 
-TruongSonBank là một banking platform reference/demo theo hướng microservices,
-hexagonal architecture và production-like infrastructure. Repo gồm backend
-services, shared platform package, native iOS app, operations portal và hạ tầng
-quan sát hệ thống.
+TruongSonBank is a banking platform reference/demo organized around
+microservices, hexagonal architecture, and production-like infrastructure. The
+repository contains backend services, a shared platform package, a native iOS
+application, an operations portal, and local observability infrastructure.
 
-[English version](README.en.md)
+[Vietnamese version](README.vi.md)
 
-> Đây là môi trường phát triển và kiểm thử. Secret, Keycloak realm, T29 và một
-> số third-party provider hiện là cấu hình/mock local, chưa phải production.
+> This repository is for development and testing. Secrets, the Keycloak realm,
+> T29, and several third-party providers are local/demo implementations and are
+> not production-ready defaults.
 
-## Mục lục
+## Contents
 
-- [Phạm vi dự án](#phạm-vi-dự-án)
-- [Các module](#các-module)
-- [Kiến trúc tổng quát](#kiến-trúc-tổng-quát)
-- [Kiến trúc code](#kiến-trúc-code)
-- [Kiến trúc database](#kiến-trúc-database)
-- [Các concept chính](#các-concept-chính)
+- [Project Scope](#project-scope)
+- [Modules](#modules)
+- [General Architecture](#general-architecture)
+- [Code Architecture](#code-architecture)
+- [Database Architecture](#database-architecture)
+- [Key Concepts](#key-concepts)
 - [Prerequisites](#prerequisites)
-- [Chạy hệ thống](#chạy-hệ-thống)
-- [Portal và mobile app](#portal-và-mobile-app)
-- [Smoke test và observability](#smoke-test-và-observability)
-- [Phát triển và kiểm thử](#phát-triển-và-kiểm-thử)
-- [Giới hạn và troubleshooting](#giới-hạn-và-troubleshooting)
-- [Tài liệu chi tiết](#tài-liệu-chi-tiết)
+- [Running the System](#running-the-system)
+- [Portal and Mobile App](#portal-and-mobile-app)
+- [Smoke Tests and Observability](#smoke-tests-and-observability)
+- [Development and Testing](#development-and-testing)
+- [Limitations and Troubleshooting](#limitations-and-troubleshooting)
+- [Detailed Documentation](#detailed-documentation)
 
-## Phạm vi dự án
+## Project Scope
 
-Hệ thống minh họa:
+The platform demonstrates:
 
-- onboarding khách hàng, OTP, eKYC/NFC/liveness và mở tài khoản;
-- login PIN/password, biometric/passkey, DPoP, challenge/nonce và trusted device;
-- internal session, BFF gateway và service-to-service authorization;
-- entitlement theo customer, service package, group và operation;
-- account/balance/transfer boundary qua core account;
-- config management với draft, publish, version, audit và cache;
-- Kafka retry, idempotency, outbox, DLQ, replay và trace propagation;
-- cache L1/L2, invalidation đa instance, sequence, encryption và sharding;
-- centralized logs, distributed traces và metrics.
+- customer onboarding, OTP, eKYC/NFC/liveness, and account opening;
+- PIN/password, biometric/passkey login, DPoP, challenge/nonce, and trusted devices;
+- internal sessions, BFF gateway routing, and service-to-service authorization;
+- customer entitlement through service packages, groups, and operations;
+- account and balance boundaries through the core account service;
+- configuration management with draft, publish, version, audit, and cache;
+- Kafka retry, idempotency, outbox, DLQ, replay, and trace propagation;
+- L1/L2 cache, multi-instance invalidation, sequence generation, encryption, and sharding;
+- centralized logs, distributed traces, and metrics.
 
-## Các module
+## Modules
 
-| Module | Vai trò |
+| Module | Responsibility |
 | --- | --- |
-| `sharedpackage` | Spring Boot starter: response, exception, validation, logging, OpenTelemetry, cache, Kafka, HTTP/gRPC client, resilience, service token, sequence, crypto và sharding. |
-| `bff` | Public gateway cho mobile/portal; forward request, đọc Redis session, enrich entitlement, tạo service token và route tới domain; không chứa business logic. |
-| `auth` | Keycloak integration, challenge/nonce, DPoP, login types, trusted device, internal session và mapping Keycloak subject với customer. |
-| `client` | Customer domain: onboarding, customer profile, config client, protocol/cache/Kafka demo và orchestration mở tài khoản. |
-| `core` | Core account boundary: tạo, tra cứu và xử lý account/balance. |
-| `common` | Modular monolith cho config management, entitlement và mock third-party providers; có thể tách thành microservices. |
-| `t29` | T24-like mock core, hiện dùng in-memory để mô phỏng tạo account và số account. |
-| `keycloak-biometric-provider` | Custom Keycloak provider cho biometric/passkey credential và custom grant. |
-| `mobileapp` | Native SwiftUI iOS app để thử onboarding, login và API logs. |
-| `portal` | Plain HTML/CSS/JS operations portal quản lý config và entitlement qua BFF. |
-| `deployment` | Docker Compose, MySQL init/migration và hạ tầng local. |
-| `monitoring` | Prometheus, Grafana, Tempo, Loki, OTel Collector và Promtail. |
-| `plan` | Design, brainstorm, database, flow và implementation plan. |
+| `sharedpackage` | Spring Boot starter for response, exception, validation, logging, OpenTelemetry, cache, Kafka, HTTP/gRPC clients, resilience, service tokens, sequences, crypto, and sharding. |
+| `bff` | Public gateway for mobile and portal clients. Reads Redis sessions, enriches entitlement, obtains service tokens, and routes requests without owning business logic. |
+| `auth` | Keycloak integration, challenge/nonce, DPoP, login types, trusted devices, internal sessions, and Keycloak-subject/customer mapping. |
+| `client` | Customer domain: onboarding, customer profiles, config client, protocol/cache/Kafka demos, and account-opening orchestration. |
+| `core` | Core account boundary for account creation, lookup, balance, and account operations. |
+| `common` | Modular monolith for configuration management, entitlement, and mock third-party providers. It can later be split into microservices. |
+| `t29` | T24-like in-memory mock core for account number generation and account operations. |
+| `keycloak-biometric-provider` | Custom Keycloak provider for biometric/passkey credentials and custom grants. |
+| `mobileapp` | Native SwiftUI iOS application for onboarding, login, and API-log inspection. |
+| `portal` | Plain HTML/CSS/JS operations portal for configuration and entitlement management through BFF. |
+| `deployment` | Docker Compose, MySQL initialization/migrations, and local infrastructure configuration. |
+| `monitoring` | Prometheus, Grafana, Tempo, Loki, OpenTelemetry Collector, and Promtail. |
+| `plan` | Design, brainstorming, database, flow, and implementation documents. |
 
-### Cổng mặc định
+### Default ports
 
-| Thành phần | Port |
+| Component | Host port |
 | --- | ---: |
 | BFF | `8086` |
 | Client | `8081` |
@@ -74,11 +75,13 @@ Hệ thống minh họa:
 | Prometheus / Grafana | `9090` / `3000` |
 | Tempo / Loki / RedisInsight | `3200` / `3100` / `5540` |
 
-`client2` là service demo tùy chọn và hiện không thuộc compose chính.
+`client2` is an optional demo service and is currently not part of the main
+Compose stack.
 
-## Kiến trúc tổng quát
+## General Architecture
 
-Các sơ đồ Mermaid được GitHub render trực tiếp như ảnh kiến trúc.
+The Mermaid diagrams below are rendered directly by GitHub as architecture
+diagrams.
 
 ### Runtime architecture
 
@@ -114,7 +117,7 @@ flowchart LR
     Grafana --> Loki
 ```
 
-### Trust boundary và request flow
+### Trust boundary and request flow
 
 ```mermaid
 sequenceDiagram
@@ -128,15 +131,15 @@ sequenceDiagram
     BFF->>Redis: Read internal session
     Redis-->>BFF: user/customer + service packages
     BFF->>BFF: Resolve entitlement metadata
-    BFF->>KC: Service token when required
+    BFF->>KC: Obtain service token when required
     KC-->>BFF: Service access token
     BFF->>Domain: Forward + signed auth/entitlement headers
-    Domain->>Domain: Validate token/signature/annotation
+    Domain->>Domain: Validate token, signature, and annotation
     Domain-->>BFF: Domain response
     BFF-->>App: Standardized response
 ```
 
-### Onboarding và login
+### Onboarding and login
 
 ```mermaid
 flowchart TD
@@ -160,10 +163,10 @@ flowchart TD
     KCVerify --> Session2[Create/cache session ID]
 ```
 
-## Kiến trúc code
+## Code Architecture
 
-Backend dùng hexagonal architecture để mỗi domain có thể tách thành repository
-hoặc microservice sau này:
+Backend domains use hexagonal architecture so each domain can later become a
+separate repository or microservice:
 
 ```text
 <service>/src/main/java/vn/com/truongsonbank/<service>/
@@ -181,23 +184,24 @@ hoặc microservice sau này:
 └── <service>Application.java
 ```
 
-Các context chính:
+Main contexts include:
 
-- `client/customer`: onboarding và customer profile;
-- `core/account`: account open, detail, balance;
-- `common/config`: config draft/publish/version/audit;
-- `common/entitlement`: operation, group, package và assignment;
-- `auth/authentication`: login, challenge, session và trusted device;
-- `bff`: gateway filter/context enrichment, không sở hữu business domain.
+- `client/customer`: onboarding and customer profile;
+- `core/account`: account opening, detail, and balance;
+- `common/config`: configuration draft/publish/version/audit;
+- `common/entitlement`: operations, groups, packages, and assignments;
+- `auth/authentication`: login, challenge, session, and trusted devices;
+- `bff`: gateway filters and context enrichment, with no business domain ownership.
 
-`sharedpackage` là Spring Boot starter. Service import dependency và cấu hình
-`application.yml`; auto-configuration cung cấp response, exception, trace, log,
-metrics, cache, Kafka, HTTP/gRPC, resilience và security interceptor.
+`sharedpackage` is a Spring Boot starter. Services import the dependency and
+configure `application.yml`; auto-configuration provides response handling,
+exceptions, tracing, logging, metrics, cache, Kafka, HTTP/gRPC, resilience, and
+security interceptors.
 
-## Kiến trúc database
+## Database Architecture
 
-Mỗi domain sở hữu schema riêng. Cùng một MySQL instance local không có nghĩa
-service được phép đọc bảng của domain khác.
+Each domain owns its own schema. Sharing one local MySQL instance does not grant
+services permission to read another domain's tables.
 
 ```mermaid
 flowchart TB
@@ -214,90 +218,79 @@ flowchart TB
     Keycloak[Keycloak] --> KCDB
 ```
 
-| Schema | Owner | Dữ liệu chính |
+| Schema | Owner | Main data |
 | --- | --- | --- |
-| `customer` | `client` | `customer_profile`, onboarding session, account link và outbox. |
-| `authdb` | `auth` | `auth_customer_identity`, `auth_device`, `auth_session`. Biometric/passkey/PIN credential thuộc Keycloak provider. |
-| `entitlementdb` | `common` | Config draft/publish/audit; operation, group, service package, assignment, override và snapshot. |
-| `coredb` | `core` | Core customer mapping, `core_account` và idempotency/account operation. |
-| `keycloakdb` | Keycloak | Realm, user, credential và provider data do Keycloak quản lý. |
+| `customer` | `client` | `customer_profile`, onboarding sessions, account links, and outbox data. |
+| `authdb` | `auth` | `auth_customer_identity`, `auth_device`, and `auth_session`. Biometric/passkey/PIN credentials belong to the Keycloak provider. |
+| `entitlementdb` | `common` | Configuration draft/publish/audit; operations, groups, service packages, assignments, overrides, and snapshots. |
+| `coredb` | `core` | Core customer mapping, `core_account`, and idempotency/account-operation records. |
+| `keycloakdb` | Keycloak | Realm, user, credential, and provider-managed identity data. |
 
-`commondb` là legacy. Common hiện phải dùng `entitlementdb`; migration nằm
-trong `deployment/mysql/migrations/`.
+`commondb` is legacy. Common must use `entitlementdb`; the migration is in
+`deployment/mysql/migrations/`.
 
-### Entitlement model
+## Key Concepts
 
-```mermaid
-erDiagram
-    ENTITLEMENT_OPERATION ||--o{ ENTITLEMENT_GROUP_OPERATION : contains
-    ENTITLEMENT_GROUP ||--o{ ENTITLEMENT_GROUP_OPERATION : grants
-    ENTITLEMENT_GROUP ||--o{ ENTITLEMENT_GROUP : parent_of
-    SERVICE_PACKAGE ||--o{ SERVICE_PACKAGE_GROUP : includes
-    ENTITLEMENT_GROUP ||--o{ SERVICE_PACKAGE_GROUP : assigned
-    CUSTOMER ||--o{ CUSTOMER_SERVICE_PACKAGE : owns
-    SERVICE_PACKAGE ||--o{ CUSTOMER_SERVICE_PACKAGE : assigned
-```
+### Authentication and sessions
 
-BFF cache metadata ở L1 theo package/group/operation; Redis session L2 chứa
-package của user. Entitlement metadata đổi sẽ phát event để BFF invalid L1.
-Thay package của user không sửa ngay session L2; user logout/login để lấy policy
-mới hiện tại.
-
-## Các concept chính
-
-### Authentication và session
-
-- Keycloak xác thực credential và quản lý user/credential.
-- Auth kiểm tra DPoP, challenge/nonce, trusted device rồi tạo internal session ID.
-- Session nằm ở Redis để BFF đọc nhanh, không gọi auth ở mọi request.
-- Một user có thể có nhiều trusted device, mỗi device có key pair và DPoP JKT.
-- Login phân biệt bằng `loginType`: `tsb-pin`, `password`, `biometric`,
-  `passkey`.
+- Keycloak authenticates credentials and manages users and credentials.
+- Auth validates DPoP, challenge/nonce, and trusted-device state before creating
+  an internal session ID.
+- Sessions are stored in Redis so BFF can read them without calling Auth on every
+  request.
+- A user can have multiple trusted devices; each device has its own key pair and
+  DPoP JKT.
+- Login is distinguished by `loginType`: `tsb-pin`, `password`,
+  `biometric`, or `passkey`.
 
 ### Authorization
 
-- Customer gắn với `service_package`; staff/system có thể gắn theo role.
-- Package gồm group; group hỗ trợ cha/con và map tới operation độc lập như
-  `TRANSFER`, `TRANSFER_GLOBAL`.
-- BFF resolve operation rồi truyền context đã ký xuống domain.
-- Domain dùng `@RequireEntitlement` và service permission validator.
-- Service-to-service call dùng service token; header plain text không phải bằng chứng
-  bảo mật.
+- Customers are assigned service packages; staff/system principals may use roles.
+- A package contains groups; groups support parent/child relationships and map to
+  independent operations such as `TRANSFER` and `TRANSFER_GLOBAL`.
+- BFF resolves operations and forwards a signed context to the domain.
+- Domains use `@RequireEntitlement` and service-permission validators.
+- Service-to-service calls use service tokens; a plain-text entitlement header is
+  not a security proof.
 
-### Resilience và protocol
+### Resilience and protocols
 
-Shared HTTP/gRPC hỗ trợ timeout, retry/backoff, `Retry-After` cho 429, circuit
-breaker, fallback, deadline, TLS, trace, metric và service token interceptor.
+Shared HTTP/gRPC clients support timeout, retry/backoff, `Retry-After` for 429,
+circuit breaker, fallback, deadline, TLS, tracing, metrics, and service-token
+interceptors.
 
 ### Kafka
 
-Producer/consumer có trace và metric; idempotency chống duplicate; retry có
-backoff; lỗi quá ngưỡng vào DLQ; replay là thao tác có chủ đích; outbox ghi event
-cùng transaction rồi relay worker publish sang Kafka.
+Producers and consumers provide trace propagation and metrics. Idempotency
+prevents duplicate processing, retries use backoff, failed messages go to DLQ,
+replay is explicit, and outbox events are relayed to Kafka after the domain
+transaction.
 
 ### Observability
 
-OpenTelemetry truyền trace qua HTTP, gRPC và Kafka. Log JSON có `app`,
-`traceId`, `spanId`, request metadata và stacktrace. Promtail -> Loki,
-OTel Collector -> Tempo/Prometheus, Grafana hiển thị cả ba nguồn.
+OpenTelemetry propagates traces over HTTP, gRPC, and Kafka. JSON logs include
+`app`, `traceId`, `spanId`, request metadata, and error stacktraces.
+Promtail sends logs to Loki; the OTel Collector sends traces/metrics to Tempo
+and Prometheus; Grafana visualizes all three.
 
-### Config và cache
+### Configuration and cache
 
-Common config hỗ trợ draft, validate, publish, version, audit và rollback.
-Client pull lúc startup, cache L1, polling và Redis pub/sub/tracking. Cache
-platform có L1/L2, soft TTL, null TTL, broadcast invalidation và metrics.
+Common configuration supports draft, validation, publish, version, audit, and
+rollback. Client pulls configuration at startup, keeps an L1 cache, polls for
+changes, and receives real-time updates through Redis pub/sub/tracking. The cache
+platform supports L1/L2, soft TTL, null TTL, broadcast invalidation, and metrics.
 
 ## Prerequisites
 
-- Docker Desktop hoặc Colima, tối thiểu 6-8 GB RAM cho local stack.
-- Docker Compose v2, JDK 25, Maven 3.9+ và Git.
-- Python 3 để chạy portal.
-- Xcode + Apple Development Team nếu build iPhone thật.
+- Docker Desktop or Colima with at least 6-8 GB RAM for the local stack.
+- Docker Compose v2, JDK 25, Maven 3.9+, and Git.
+- Python 3 for the portal.
+- Xcode and an Apple Development Team for a physical iPhone build.
 
-Dependency/version cụ thể nằm trong từng `pom.xml`. Không commit token, private
-key, keystore hoặc file `.env` thật.
+Dependency versions are managed in each `pom.xml`. Do not commit tokens,
+private keys, keystores, or real `.env` files.
 
-## Chạy hệ thống
+## Running the System
 
 ```bash
 cd /Users/sonnvt/sonnvt/TruongSonBank
@@ -306,22 +299,22 @@ docker compose -f deployment/docker-compose.monitoring.yml up -d --build
 docker compose -f deployment/docker-compose.monitoring.yml ps
 ```
 
-Rebuild/restart nhóm service:
+Rebuild and restart the main services:
 
 ```bash
 docker compose -f deployment/docker-compose.monitoring.yml up -d \
   --build --force-recreate auth bff client common core
 ```
 
-Dừng stack:
+Stop the stack:
 
 ```bash
 docker compose -f deployment/docker-compose.monitoring.yml down
 ```
 
-Không dùng `down -v` nếu muốn giữ volume MySQL, Redis và monitoring.
+Do not use `down -v` if you want to keep MySQL, Redis, and monitoring volumes.
 
-### Build từng module
+### Build individual modules
 
 ```bash
 cd sharedpackage && mvn -q test install
@@ -332,12 +325,15 @@ cd ../common && mvn -q -DskipTests package
 cd ../core && mvn -q -DskipTests package
 ```
 
-Compose tạo schema cơ bản từ
-`deployment/mysql/init/00-create-service-schemas.sql`; migration bổ sung nằm
-trong `deployment/mysql/migrations/`. Production nên dùng migration job
-Flyway/Liquibase riêng.
+After changing sharedpackage, install it into the local Maven repository before
+packaging services that consume the new version.
 
-## Portal và mobile app
+Compose creates base schemas from
+`deployment/mysql/init/00-create-service-schemas.sql`; additional migrations
+are in `deployment/mysql/migrations/`. Production should use a dedicated
+Flyway/Liquibase migration job.
+
+## Portal and Mobile App
 
 ### Operations portal
 
@@ -346,20 +342,22 @@ cd portal
 python3 -m http.server 8090
 ```
 
-Mở [http://localhost:8090](http://localhost:8090). Portal gọi BFF tại
-`http://localhost:8086/bff/api/common`; admin key local là
-`local-admin-key` trong demo.
+Open http://localhost:8090. The portal calls BFF at
+`http://localhost:8086/bff/api/common`; the local demo admin key is
+`local-admin-key`.
 
 ### Native iOS app
 
-Mở `mobileapp/TruongSonBankMobile.xcodeproj` bằng Xcode. Simulator dùng
-`localhost`; iPhone thật dùng IP LAN của Mac cho BFF/Keycloak. Cấu hình local
-đặt theo `mobileapp/VnptSdk.env.example`, không commit file env thật.
+Open `mobileapp/TruongSonBankMobile.xcodeproj` in Xcode. Use `localhost` for
+the simulator; use the Mac LAN IP for BFF/Keycloak on a physical iPhone. Put
+local configuration in the env file described by
+`mobileapp/VnptSdk.env.example`; do not commit real env values.
 
-NFC Scan và Face ID cần capability/provisioning profile được Apple Team hỗ trợ.
-QR/eKYC/liveness third-party có thể chạy bằng mock provider khi thiếu SDK/license.
+NFC Scan and Face ID require capabilities and a provisioning profile supported by
+the Apple Development Team. QR/eKYC/liveness third-party flows can use the mock
+provider when the required SDK or license is unavailable.
 
-## Smoke test và observability
+## Smoke Tests and Observability
 
 ```bash
 curl -i http://localhost:8086/bff/api/actuator/health
@@ -367,7 +365,7 @@ curl -i http://localhost:8083/common/api/actuator/health
 curl -i http://localhost:8081/actuator/health
 ```
 
-Kiểm tra container và log:
+Inspect containers and logs:
 
 ```bash
 docker compose -f deployment/docker-compose.monitoring.yml ps
@@ -378,7 +376,7 @@ docker logs -f tsb-common
 docker logs -f tsb-core
 ```
 
-### UI hạ tầng
+### Infrastructure UIs
 
 - Grafana: http://localhost:3000
 - Kafka UI: http://localhost:18080
@@ -389,14 +387,14 @@ docker logs -f tsb-core
 - Consul: http://localhost:8500
 - Keycloak: http://localhost:8088
 
-Swagger thường dùng:
+Common Swagger URLs:
 
 - Auth: `http://localhost:8084/auth/api/swagger-ui/index.html`
 - Common: `http://localhost:8083/common/api/swagger-ui/index.html`
 - Core: `http://localhost:8085/core/api/swagger-ui/index.html`
 - Client: `http://localhost:8081/swagger-ui/index.html`
 
-## Phát triển và kiểm thử
+## Development and Testing
 
 ```bash
 cd sharedpackage && mvn -q test
@@ -409,46 +407,48 @@ cd ../core && mvn -q test
 docker compose -f deployment/docker-compose.monitoring.yml config -q
 ```
 
-Khi thêm service: tạo hexagonal context, import sharedpackage, cấp schema riêng,
-thêm health/metrics/trace/log/discovery, thêm compose/deployment, thêm route BFF
-nếu là public API, migration và smoke test.
+When adding a service: follow the hexagonal convention, import sharedpackage,
+create a dedicated schema, add health/metrics/tracing/logging/discovery, update
+Compose or deployment manifests, add a BFF route for public APIs, add migrations,
+and add smoke tests.
 
-## Giới hạn và troubleshooting
+## Limitations and Troubleshooting
 
-- T29 là mock in-memory; SMS, NFC, eKYC, liveness và một số third-party adapter
-  còn mock hoặc phụ thuộc SDK/license.
-- Local Keycloak, secret, TLS, Kafka security và database credentials chỉ dành
-  cho development. Compose chưa có HA, autoscaling, KMS, WAF hay service mesh.
-- `client2` là demo tùy chọn và không nằm trong compose mặc định.
-- Production cần secret manager/KMS, TLS/mTLS, HA Keycloak, migration job, Kafka
-  ACL/SASL/TLS, Redis HA, backup/restore, rate limit, risk engine, security/load
-  test và disaster recovery.
+- T29 is an in-memory mock. SMS, NFC, eKYC, liveness, and some third-party
+  adapters are mocked or depend on external SDKs/licenses.
+- Local Keycloak, secrets, TLS, Kafka security, and database credentials are for
+  development only. Local Compose does not provide HA, autoscaling, KMS, WAF, or
+  a service mesh.
+- `client2` is optional and is not part of the default Compose stack.
+- Production requires a secret manager/KMS, TLS/mTLS, HA Keycloak, migration jobs,
+  Kafka ACL/SASL/TLS, Redis HA, backup/restore, rate limiting, a risk engine,
+  security/load testing, and disaster recovery.
 
-Nếu container OOM, tăng RAM Docker/Colima rồi kiểm tra:
+For OOM or startup failures:
 
 ```bash
 docker compose -f deployment/docker-compose.monitoring.yml ps
 docker compose -f deployment/docker-compose.monitoring.yml logs --tail=200 <service>
 ```
 
-Nếu code mới chưa vào container:
+If new code is not present in a container:
 
 ```bash
 docker compose -f deployment/docker-compose.monitoring.yml up -d \
   --build --force-recreate <service>
 ```
 
-Nếu mobile không gọi được backend, không dùng `localhost` trên iPhone thật:
-dùng IP LAN của Mac, cùng network và mở firewall cho BFF/Keycloak. Nếu NFC build
-fail, cần Apple Team/profile hỗ trợ NFC hoặc dùng QR/mock provider.
+If the mobile app cannot reach the backend, do not use `localhost` on a physical
+iPhone. Use the Mac LAN IP, the same network, and an open firewall port. If NFC
+build fails, use an Apple Team/profile with NFC support or the QR/mock provider.
 
-Nếu không thấy trace/log, kiểm tra OTel Collector, Tempo, Loki, Grafana,
-`OTEL_EXPORTER_OTLP_ENDPOINT` và `TSB_SHARED_TRACING_*`. Actuator/health có
-thể bị exclude để tránh trace/log rác.
+If traces or logs are missing, check OTel Collector, Tempo, Loki, Grafana,
+`OTEL_EXPORTER_OTLP_ENDPOINT`, and `TSB_SHARED_TRACING_*`. Actuator/health
+endpoints may be excluded to avoid noisy traces and logs.
 
-## Tài liệu chi tiết
+## Detailed Documentation
 
-Các design và implementation plan nằm trong [plan](plan/):
+Design and implementation plans are in [plan](plan/):
 
 - [architecture-flow-db-brainstorm.md](plan/architecture-flow-db-brainstorm.md)
 - [auth-like-prod-implementation-plan.md](plan/auth-like-prod-implementation-plan.md)
@@ -464,5 +464,4 @@ Các design và implementation plan nằm trong [plan](plan/):
 - [sharedpackage-starter-design.md](plan/sharedpackage-starter-design.md)
 - [sharedpackage-sharding-design.md](plan/sharedpackage-sharding-design.md)
 
-Khi behavior thay đổi, cập nhật README và plan liên quan cùng một change để người
-triển khai không phải suy đoán từ code hoặc compose file.
+Keep this file and the Vietnamese README aligned when runtime behavior changes.
