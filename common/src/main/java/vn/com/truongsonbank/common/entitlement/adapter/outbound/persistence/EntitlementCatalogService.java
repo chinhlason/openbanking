@@ -9,6 +9,8 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.com.truongsonbank.common.entitlement.domain.EntitlementErrors;
+import vn.com.truongsonbank.common.entitlement.domain.model.EntitlementChangeEvent;
+import vn.com.truongsonbank.common.entitlement.domain.port.EntitlementEventPublisher;
 import vn.com.truongsonbank.shared.exception.TsbException;
 
 @Service
@@ -21,14 +23,16 @@ public class EntitlementCatalogService {
     private final EntitlementAuditRepository audits;
     private final CustomerServicePackageRepository customerPackages;
     private final UserEntitlementOverrideRepository overrides;
+    private final EntitlementEventPublisher eventPublisher;
 
     public EntitlementCatalogService(EntitlementOperationRepository operations, EntitlementGroupRepository groups,
                                      ServicePackageRepository packages, EntitlementGroupOperationRepository groupOperations,
                                      ServicePackageGroupRepository packageGroups, EntitlementAuditRepository audits,
-                                     CustomerServicePackageRepository customerPackages, UserEntitlementOverrideRepository overrides) {
+                                     CustomerServicePackageRepository customerPackages, UserEntitlementOverrideRepository overrides,
+                                     EntitlementEventPublisher eventPublisher) {
         this.operations = operations; this.groups = groups; this.packages = packages;
         this.groupOperations = groupOperations; this.packageGroups = packageGroups; this.audits = audits;
-        this.customerPackages = customerPackages; this.overrides = overrides;
+        this.customerPackages = customerPackages; this.overrides = overrides; this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -38,6 +42,7 @@ public class EntitlementCatalogService {
         }
         EntitlementOperationEntity saved = operations.save(new EntitlementOperationEntity(code, name, domain));
         audits.save(new EntitlementAuditEntity(actor, "CREATE", "OPERATION", String.valueOf(saved.id), traceId));
+        eventPublisher.publish(EntitlementChangeEvent.all("OPERATION_CHANGED"));
         return Map.of("id", saved.id, "code", saved.code, "version", saved.version);
     }
 
@@ -103,6 +108,7 @@ public class EntitlementCatalogService {
         if (parentId != null && !groups.existsById(parentId)) throw new IllegalArgumentException("Parent group not found");
         EntitlementGroupEntity saved = groups.save(new EntitlementGroupEntity(code, name, parentId));
         audits.save(new EntitlementAuditEntity(actor, "CREATE", "GROUP", String.valueOf(saved.id), traceId));
+        eventPublisher.publish(EntitlementChangeEvent.all("GROUP_CHANGED"));
         return Map.of("id", saved.id, "code", saved.code, "parentId", saved.parentId == null ? "" : saved.parentId);
     }
 
@@ -110,6 +116,7 @@ public class EntitlementCatalogService {
     public Map<String, Object> servicePackage(String code, String name, String actor, String traceId) {
         ServicePackageEntity saved = packages.save(new ServicePackageEntity(code, name));
         audits.save(new EntitlementAuditEntity(actor, "CREATE", "SERVICE_PACKAGE", String.valueOf(saved.id), traceId));
+        eventPublisher.publish(EntitlementChangeEvent.packageMetadata("SERVICE_PACKAGE_CHANGED", saved.code));
         return Map.of("id", saved.id, "code", saved.code, "version", saved.version);
     }
 
@@ -121,6 +128,7 @@ public class EntitlementCatalogService {
             groupOperations.save(existing);
         }, () -> groupOperations.save(new EntitlementGroupOperationEntity(groupId, operationId, effect)));
         audits.save(new EntitlementAuditEntity(actor, "BIND", "GROUP_OPERATION", groupId + ":" + operationId, traceId));
+        eventPublisher.publish(EntitlementChangeEvent.all("GROUP_OPERATION_CHANGED"));
     }
 
     @Transactional
@@ -131,6 +139,9 @@ public class EntitlementCatalogService {
             packageGroups.save(existing);
         }, () -> packageGroups.save(new ServicePackageGroupEntity(packageId, groupId, effect)));
         audits.save(new EntitlementAuditEntity(actor, "BIND", "PACKAGE_GROUP", packageId + ":" + groupId, traceId));
+        packages.findById(packageId)
+                .map(servicePackage -> EntitlementChangeEvent.packageMetadata("PACKAGE_GROUP_CHANGED", servicePackage.code))
+                .ifPresent(eventPublisher::publish);
     }
 
     @Transactional
@@ -147,6 +158,7 @@ public class EntitlementCatalogService {
         Instant effectiveFrom = effectiveFrom(from, to);
         customerPackages.save(new CustomerServicePackageEntity(customerId, packageId, effectiveFrom, to));
         audits.save(new EntitlementAuditEntity(actor, "ASSIGN", "CUSTOMER_PACKAGE", customerId + ":" + packageId, traceId));
+        eventPublisher.publish(EntitlementChangeEvent.subject("CUSTOMER_PACKAGE_CHANGED", customerId));
     }
 
     @Transactional
@@ -184,6 +196,7 @@ public class EntitlementCatalogService {
         Instant effectiveFrom = effectiveFrom(from, to);
         overrides.save(new UserEntitlementOverrideEntity(type, subjectId, operationId, effect, reason, actor, effectiveFrom, to));
         audits.save(new EntitlementAuditEntity(actor, "OVERRIDE", type, subjectId + ":" + operationId, traceId));
+        eventPublisher.publish(EntitlementChangeEvent.subject("SUBJECT_OVERRIDE_CHANGED", subjectId));
     }
 
     private Instant effectiveFrom(Instant from, Instant to) {

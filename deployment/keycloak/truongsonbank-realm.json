@@ -30,6 +30,68 @@
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true
+    },
+    {
+      "clientId": "client-service",
+      "name": "Client service account",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "secret": "local-client-service-secret",
+      "protocolMappers": [
+        {"name": "core-service-audience", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": {"included.client.audience": "core-service", "id.token.claim": "false", "access.token.claim": "true"}},
+        {"name": "common-service-audience", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": {"included.client.audience": "common-service", "id.token.claim": "false", "access.token.claim": "true"}},
+        {"name": "client-service-audience", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": {"included.client.audience": "client-service", "id.token.claim": "false", "access.token.claim": "true"}}
+      ]
+    },
+    {
+      "clientId": "core-service",
+      "name": "Core service account",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "secret": "local-core-service-secret",
+      "protocolMappers": [
+        {"name": "common-service-audience", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": {"included.client.audience": "common-service", "id.token.claim": "false", "access.token.claim": "true"}}
+      ]
+    },
+    {
+      "clientId": "common-service",
+      "name": "Common service account",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "secret": "local-common-service-secret"
+    },
+    {
+      "clientId": "bff-service",
+      "name": "BFF service account",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "secret": "local-bff-service-secret",
+      "protocolMappers": [
+        {"name": "core-service-audience", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": {"included.client.audience": "core-service", "id.token.claim": "false", "access.token.claim": "true"}},
+        {"name": "common-service-audience", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": {"included.client.audience": "common-service", "id.token.claim": "false", "access.token.claim": "true"}}
+      ]
+    },
+    {
+      "clientId": "t29-service",
+      "name": "T29 service account",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "secret": "local-t29-service-secret"
     }
   ],
   "users": [

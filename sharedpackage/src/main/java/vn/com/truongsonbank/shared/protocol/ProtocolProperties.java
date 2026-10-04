@@ -279,6 +279,7 @@ public class ProtocolProperties {
         private Retry retry;
         private CircuitBreaker circuitBreaker;
         private OutboundLog log;
+        private ServiceAuth serviceAuth;
 
         static Policy defaults() {
             Policy policy = new Policy();
@@ -287,6 +288,7 @@ public class ProtocolProperties {
             policy.setRetry(new Retry());
             policy.setCircuitBreaker(new CircuitBreaker());
             policy.setLog(new OutboundLog());
+            policy.setServiceAuth(new ServiceAuth());
             return policy;
         }
 
@@ -306,6 +308,9 @@ public class ProtocolProperties {
             }
             if (configured.getLog() == null) {
                 configured.setLog(fallback.getLog());
+            }
+            if (configured.getServiceAuth() == null) {
+                configured.setServiceAuth(fallback.getServiceAuth());
             }
             return configured;
         }
@@ -349,6 +354,39 @@ public class ProtocolProperties {
         public void setLog(OutboundLog log) {
             this.log = log == null ? new OutboundLog() : log;
         }
+
+        public ServiceAuth getServiceAuth() {
+            return serviceAuth;
+        }
+
+        public void setServiceAuth(ServiceAuth serviceAuth) {
+            this.serviceAuth = serviceAuth == null ? new ServiceAuth() : serviceAuth;
+        }
+    }
+
+    public static class ServiceAuth {
+        private boolean enabled;
+        private String clientId;
+        private String clientSecret;
+        private String tokenUri;
+        private String audience;
+        private Duration tokenRefreshSkew = Duration.ofSeconds(30);
+        private boolean retryOnUnauthorizedOnce = true;
+
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
+        public String getClientId() { return clientId; }
+        public void setClientId(String clientId) { this.clientId = clientId; }
+        public String getClientSecret() { return clientSecret; }
+        public void setClientSecret(String clientSecret) { this.clientSecret = clientSecret; }
+        public String getTokenUri() { return tokenUri; }
+        public void setTokenUri(String tokenUri) { this.tokenUri = tokenUri; }
+        public String getAudience() { return audience; }
+        public void setAudience(String audience) { this.audience = audience; }
+        public Duration getTokenRefreshSkew() { return tokenRefreshSkew; }
+        public void setTokenRefreshSkew(Duration tokenRefreshSkew) { this.tokenRefreshSkew = tokenRefreshSkew; }
+        public boolean isRetryOnUnauthorizedOnce() { return retryOnUnauthorizedOnce; }
+        public void setRetryOnUnauthorizedOnce(boolean retryOnUnauthorizedOnce) { this.retryOnUnauthorizedOnce = retryOnUnauthorizedOnce; }
     }
 
     public static class Retry {

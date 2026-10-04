@@ -18,6 +18,7 @@ import vn.com.truongsonbank.shared.crypto.TsbCryptoService;
 import vn.com.truongsonbank.shared.exception.BusinessException;
 import vn.com.truongsonbank.shared.exception.NotFoundException;
 import vn.com.truongsonbank.shared.response.TsbResponse;
+import vn.com.truongsonbank.shared.protocol.TsbHttpClientFactory;
 
 import java.time.Instant;
 import java.util.Arrays;
@@ -47,7 +48,8 @@ public class CustomerOnboardingService {
                               CustomerAccountLinkRepository accountLinks,
                               TsbCryptoService crypto,
                               CustomerOnboardingProperties properties,
-                              CommonConfigClient config) {
+                              CommonConfigClient config,
+                              TsbHttpClientFactory protocol) {
         this.sessions = sessions;
         this.profiles = profiles;
         this.accountLinks = accountLinks;
@@ -56,7 +58,7 @@ public class CustomerOnboardingService {
         this.config = config;
         this.common = RestClient.builder().baseUrl(properties.getCommonBaseUrl()).build();
         this.auth = RestClient.builder().baseUrl(properties.getAuthBaseUrl()).build();
-        this.core = RestClient.builder().baseUrl(properties.getCoreBaseUrl()).build();
+        this.core = protocol.restClient("core");
     }
 
     @Transactional
@@ -195,8 +197,9 @@ public class CustomerOnboardingService {
         if (session.getAccountNumber() == null) {
             accountResponse = unwrap(core.post()
                     .uri("/core/api/v1/accounts/open")
+                    .header("X-Idempotency-Key", "onboarding-" + session.getId())
                     .body(new OpenAccountRequest(profile.getId(), profile.getPhoneHash(), profile.getCccdHash(),
-                            session.getCccd(), session.getFullName()))
+                            session.getCccd(), session.getFullName(), "VND"))
                     .retrieve()
                     .body(new ParameterizedTypeReference<TsbResponse<OpenAccountResponse>>() {
                     }));
@@ -483,7 +486,8 @@ public class CustomerOnboardingService {
                                 String deviceId, boolean trustedDevice, java.util.List<String> roles) {
     }
 
-    record OpenAccountRequest(String customerId, String phoneHash, String cccdHash, String cccd, String fullName) {
+    record OpenAccountRequest(String customerId, String phoneHash, String cccdHash, String cccd, String fullName,
+                              String currency) {
     }
 
     record OpenAccountResponse(String accountNumber) {

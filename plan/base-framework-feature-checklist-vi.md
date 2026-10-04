@@ -1,36 +1,36 @@
-# Checklist Tinh Nang Tu Base Framework
+# Feature Checklist From Base Framework
 
-Nguon: `/Users/sonnvt/Downloads/datamasa.md`
+Source: `/Users/sonnvt/Downloads/datamasa.md`
 
-Trang thai: draft.
+Status: draft.
 
-## P0 - Bat Buoc Cho Kien Truc Dau Tien
+## P0 - Required For The First Architecture
 
 ### 1. API-First / OpenAPI
 
-Can lam:
+To do:
 
-- Viet OpenAPI spec cho tung API public/internal.
-- Generate server interface cho `auth`, `bff`, `client`, `core`, `t29`.
-- Generate typed client cho cac service goi nhau.
-- Dat rule version API: them field/endpoint thi tang minor, breaking change thi tang major.
+- Write OpenAPI specs for each public/internal API.
+- Generate server interfaces for `auth`, `bff`, `client`, `core`, `t29`.
+- Generate typed clients for service-to-service calls.
+- Set the API versioning rule: adding a field/endpoint bumps minor, breaking changes bump major.
 
-Lam truoc cho:
+Do first for:
 
 - `auth`: onboarding, login, session, device, biometric, risk APIs.
 - `core`: transfer/payment APIs.
 - `t29`: account, balance, transfer mock APIs.
 - `client`: customer profile, account ownership APIs.
 
-### 2. Protocol Client Cho Goi Service-To-Service
+### 2. Protocol Client For Service-To-Service Calls
 
-Can lam:
+To do:
 
-- Dung declarative client thay vi tu viet HTTP client thu cong.
-- Cau hinh timeout, retry, circuit breaker theo tung downstream.
-- Propagate correlation id de trace end-to-end.
+- Use a declarative client instead of manually writing HTTP clients.
+- Configure timeout, retry, and circuit breaker per downstream.
+- Propagate correlation id for end-to-end tracing.
 
-Cac luong goi ban dau:
+Initial call flows:
 
 - `bff -> auth`
 - `bff -> client`
@@ -38,49 +38,49 @@ Cac luong goi ban dau:
 - `core -> t29`
 - `auth -> Keycloak`
 
-### 3. Logging Va Mask Du Lieu Nhay Cam
+### 3. Logging And Sensitive Data Masking
 
-Can lam:
+To do:
 
-- Bat structured logging cho tat ca service.
+- Enable structured logging for all services.
 - Mask `pin`, `otp`, `token`, `refreshToken`, `authorization`, `sessionId`, `cccd`, `phone`, `cardNumber`, `accountNumber`.
-- Dua `traceId`, `spanId`, `requestId`, `sessionDisplayId` vao log khi co.
-- Mac dinh khong log request body cho auth/token/NFC/payment endpoints.
+- Put `traceId`, `spanId`, `requestId`, `sessionDisplayId` into logs when available.
+- By default, do not log request bodies for auth/token/NFC/payment endpoints.
 
 ### 4. Smart Cache
 
-Can lam:
+To do:
 
-- Dung cache cho tra cuu session noi bo.
-- Cache hot state cua session:
+- Use cache for internal session lookup.
+- Cache hot session state:
   - `sessionId -> userId, deviceId, dpop_jkt, idleExpiresAt, absoluteExpiresAt, status`
-- Cache `jti` cua DPoP proof de chong replay cho API nhay cam.
-- Sau nay co the cache feature/config metadata neu can.
+- Cache DPoP proof `jti` to prevent replay for sensitive APIs.
+- Later, cache feature/config metadata if needed.
 
-Lam don gian:
+Keep it simple:
 
-- L2 Redis la du neu chay multi-instance.
-- Chua can L1 cache neu chua co van de performance.
+- L2 Redis is enough for multi-instance runs.
+- L1 cache is not needed yet unless there is a performance issue.
 
 ### 5. Data Crypto
 
-Can lam:
+To do:
 
-- Ma hoa cac field nhay cam trong DB:
+- Encrypt sensitive fields in the DB:
   - phone
   - cccd
-  - biometric public key neu policy yeu cau
-  - refresh token reference neu co luu
-  - push token/device token neu can luu raw
-- Dung deterministic encryption chi cho field can exact lookup, vi du phone/cccd.
-- Dung probabilistic encryption cho audit payload hoac metadata nhay cam khong can search equality.
+  - biometric public key if policy requires it
+  - refresh token reference if stored
+  - push token/device token if raw values need to be stored
+- Use deterministic encryption only for fields that need exact lookup, for example phone/cccd.
+- Use probabilistic encryption for audit payloads or sensitive metadata that does not need equality search.
 
 ### 6. Advanced Audit
 
-Can lam:
+To do:
 
-- Audit cac su kien auth:
-  - bat dau/hoan tat onboarding
+- Audit auth events:
+  - start/complete onboarding
   - OTP verified/failed
   - login success/failed
   - session exchange
@@ -88,55 +88,55 @@ Can lam:
   - trust/revoke device
   - enable/disable biometric
   - reset/recovery PIN
-- Audit cac su kien tien:
-  - tao transfer/payment
+- Audit money events:
+  - create transfer/payment
   - transfer/payment success/failed
-  - yeu cau thay doi balance xuong T29
-- Mask field nhay cam trong audit payload.
+  - request balance change down to T29
+- Mask sensitive fields in audit payloads.
 
-## P1 - Can Cho UAT / Production-Like
+## P1 - Needed For UAT / Production-Like
 
 ### 7. Message Queue + Outbox
 
-Can lam khi can async/audit/event delivery chac chan:
+To do when async/audit/event delivery needs to be reliable:
 
 - Publish domain events:
   - `AuthLoginSucceeded`
   - `DeviceTrusted`
   - `PaymentSucceeded`
   - `TransferSucceeded`
-- Dung outbox cho event quan trong de DB commit va publish event khong bi lech nhau.
-- Bat DLQ va retry.
+- Use outbox for important events so DB commit and event publish do not diverge.
+- Enable DLQ and retry.
 
-Bo qua o pass dau neu tat ca flow dang synchronous.
+Skip in the first pass if all flows are synchronous.
 
 ### 8. Distributed Lock
 
-Chi dung quanh cac diem concurrency that su nguy hiem:
+Use only around genuinely dangerous concurrency points:
 
-- Approve replace device: tranh 2 approval chay cung luc.
-- Reset/recovery PIN: tranh reset song song.
-- Idempotency transfer/payment: uu tien DB unique key truoc; chi dung distributed lock neu DB constraint chua du.
+- Approve replace device: prevent 2 approvals from running at the same time.
+- Reset/recovery PIN: prevent parallel resets.
+- Transfer/payment idempotency: prefer DB unique key first; use distributed lock only if the DB constraint is not enough.
 
-Rule mac dinh:
+Default rule:
 
-- Dung DB transaction/unique constraint truoc.
-- Chi them distributed lock khi van con race that.
+- Use DB transaction/unique constraint first.
+- Add distributed lock only when a real race remains.
 
 ### 9. Sequence Generator
 
-Can lam:
+To do:
 
 - Generate business ids:
   - transaction id
   - payment id
   - audit event id
-  - onboarding session id neu khong dung UUID
-- Account number cua T29 tam giu sequence/mock don gian den khi can format that.
+  - onboarding session id if UUID is not used
+- For T29 account numbers, keep a simple sequence/mock until the real format is needed.
 
 ### 10. Feature Flags
 
-Can lam de rollout co kiem soat:
+To do for controlled rollout:
 
 - `auth.biometric-login.enabled`
 - `auth.dpop-sensitive-api.enabled`
@@ -145,112 +145,111 @@ Can lam de rollout co kiem soat:
 - `payment.payment.enabled`
 - `core.t29-mock.enabled`
 
-Bo qua coordinator integration neu milestone dau chi chay local.
+Skip coordinator integration if the first milestone only runs locally.
 
 ### 11. Service Discovery
 
-Can lam khi cac service chay rieng:
+To do when services run separately:
 
 - Register `auth`, `bff`, `client`, `core`, `t29`.
-- Goi nhau bang logical service name, khong hard-code URL.
-- Cho phep tat discovery khi local standalone.
+- Call each other by logical service name, not hard-coded URL.
+- Allow discovery to be turned off for local standalone runs.
 
-## P2 - De Sau / Chi Lam Khi Co Nhu Cau
+## P2 - Later / Only When Needed
 
 ### 12. Batch Processing
 
-Dung sau cho:
+Use later for:
 
 - reconciliation jobs
-- cleanup onboarding/session het han
-- cleanup trusted device het han
-- export audit hang ngay
-- retry/reconciliation payment fail
+- cleanup expired onboarding/sessions
+- cleanup expired trusted devices
+- daily audit export
+- retry/reconciliation for failed payments
 
-Chua can cho flow synchronous dau tien.
+Not needed for the first synchronous flow.
 
 ### 13. Distributed Job
 
-Dung sau neu job chay tren nhieu pod:
+Use later if jobs run on multiple pods:
 
 - cleanup session
-- outbox relay neu MQ SDK chua xu ly
+- outbox relay if the MQ SDK does not handle it
 - reconciliation
 - report generation
 
-Chua can truoc khi co batch job that.
+Not needed before there is a real batch job.
 
 ### 14. Data Sharding
 
-Bo qua hien tai.
+Skip for now.
 
-Chi dung khi volume data bat buoc phai shard, co the la:
+Use only when data volume requires sharding, possibly for:
 
 - transactions
 - audit logs
 - auth events
 
-Khong thiet ke sharding trong DB version dau.
+Do not design sharding into the first DB version.
 
 ### 15. Data Specification
 
-Dung sau cho man hinh admin/search:
+Use later for admin/search screens:
 
 - search customer
 - search transaction
 - search audit
-- filter session/device trong admin
+- filter session/device in admin
 
-Bo qua den khi portal/admin query requirement ro rang.
+Skip until portal/admin query requirements are clear.
 
-## Breakdown Theo Service
+## Breakdown By Service
 
 ### `auth`
 
-- OpenAPI spec cho onboarding/session/device/biometric/risk.
+- OpenAPI spec for onboarding/session/device/biometric/risk.
 - Keycloak custom grant integration.
 - Session cache.
 - Device approval flow.
 - Audit events.
-- Crypto cho phone/cccd/device-sensitive fields.
+- Crypto for phone/cccd/device-sensitive fields.
 - Logging masking.
-- Feature flags cho biometric/captcha/DPoP.
+- Feature flags for biometric/captcha/DPoP.
 
 ### `bff`
 
-- Validate session voi Auth.
-- Enforce DPoP cho API nhay cam.
-- Typed clients toi Auth/Client/Core.
+- Validate session with Auth.
+- Enforce DPoP for sensitive APIs.
+- Typed clients to Auth/Client/Core.
 - Request correlation/logging.
 
 ### `client`
 
-- Customer profile theo phone/cccd.
-- Mapping customer-account.
-- Crypto cho phone/cccd.
-- Audit thay doi customer.
+- Customer profile by phone/cccd.
+- Customer-account mapping.
+- Crypto for phone/cccd.
+- Audit customer changes.
 
 ### `core`
 
 - Orchestrate transfer/payment.
-- Idempotency bang request id.
-- Typed client toi T29.
-- Audit thay doi money transaction.
-- Optional outbox cho success/failure events.
+- Idempotency by request id.
+- Typed client to T29.
+- Audit money transaction changes.
+- Optional outbox for success/failure events.
 
 ### `t29`
 
-- Account theo CCCD.
+- Account by CCCD.
 - Balance.
 - Debit/credit/transfer.
-- Sau nay: DB persistence va audit.
+- Later: DB persistence and audit.
 
-## Chua Lam Luc Nay
+## Not Doing Now
 
 - Full event-driven architecture.
 - Multi-device trust model.
 - Data sharding.
 - Batch/reconciliation engine.
 - Generic admin search framework.
-- Custom cache abstraction ngoai session/replay cache.
-
+- Custom cache abstraction beyond session/replay cache.

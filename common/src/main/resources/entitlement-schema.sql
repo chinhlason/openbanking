@@ -15,8 +15,29 @@ VALUES ('STANDARD', 'Standard customer entitlements', NULL, 'ACTIVE', 1, CURRENT
 INSERT IGNORE INTO service_package (code, name, status, version, created_at)
 VALUES ('STANDARD', 'Standard service package', 'ACTIVE', 1, CURRENT_TIMESTAMP);
 
+-- Service-to-service operations are catalog entries as well as snapshot values.
+-- Keep this migration idempotent so existing entitlement databases can be upgraded
+-- safely when the common service starts again.
+INSERT IGNORE INTO entitlement_operation
+    (code, name, domain, status, version, created_at)
+VALUES
+    ('core.account.open', 'Open customer account', 'core', 'ACTIVE', 1, CURRENT_TIMESTAMP),
+    ('common.entitlement.resolve', 'Resolve service entitlement', 'common', 'ACTIVE', 1, CURRENT_TIMESTAMP);
+
 INSERT IGNORE INTO service_package_group (package_id, group_id, effect)
 SELECT service_package.id, entitlement_group.id, 'ALLOW'
 FROM service_package
 JOIN entitlement_group ON entitlement_group.code = 'STANDARD'
 WHERE service_package.code = 'STANDARD';
+
+-- Service-to-service permissions are snapshots so callers can resolve them without
+-- connecting to this database directly.
+INSERT IGNORE INTO entitlement_snapshot
+    (subject_type, subject_id, allow_operations, deny_operations, version, expires_at, updated_at)
+VALUES
+    ('SERVICE', 'client-service', 'core.account.open,common.entitlement.resolve', '', 1,
+     DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 10 YEAR), CURRENT_TIMESTAMP),
+    ('SERVICE', 'core-service', 'common.entitlement.resolve', '', 1,
+     DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 10 YEAR), CURRENT_TIMESTAMP),
+    ('SERVICE', 'bff-service', 'common.entitlement.resolve,core.account.read', '', 1,
+     DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 10 YEAR), CURRENT_TIMESTAMP);

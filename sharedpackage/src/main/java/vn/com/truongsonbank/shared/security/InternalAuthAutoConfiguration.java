@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import vn.com.truongsonbank.shared.config.TsbCommonConfigClient;
+import vn.com.truongsonbank.shared.tracing.TraceIdentityEnricher;
 
 @AutoConfiguration
 @EnableConfigurationProperties(InternalAuthProperties.class)
@@ -44,8 +45,12 @@ public class InternalAuthAutoConfiguration {
     InternalAuthVerificationFilter internalAuthVerificationFilter(
             InternalAuthProperties properties,
             InternalAuthSecretProvider secretProvider,
-            InternalAuthNonceStore nonceStore) {
-        return new InternalAuthVerificationFilter(properties, secretProvider, nonceStore);
+            InternalAuthNonceStore nonceStore,
+            vn.com.truongsonbank.shared.response.TraceIdProvider traceIdProvider,
+            TraceIdentityEnricher traceIdentityEnricher) {
+        return new InternalAuthVerificationFilter(properties, secretProvider, nonceStore, traceIdProvider,
+                traceIdentityEnricher,
+                new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules());
     }
 
     @Bean

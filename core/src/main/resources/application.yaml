@@ -18,6 +18,38 @@ tsb:
   core:
     t29-base-url: ${T29_BASE_URL:http://localhost:8087}
   shared:
+    security:
+      service-auth:
+        enabled: ${TSB_CORE_SERVICE_AUTH_ENABLED:false}
+        service-code: core-service
+        issuer-uri: ${AUTH_KEYCLOAK_INTERNAL_ISSUER_URI:http://localhost:8088/realms/truongsonbank}
+        jwk-set-uri: ${AUTH_KEYCLOAK_JWKS_URI:http://localhost:8088/realms/truongsonbank/protocol/openid-connect/certs}
+        expected-audience: core-service
+        excluded-paths:
+          - /actuator
+          - /v3/api-docs
+          - /swagger-ui
+          - /swagger-ui.html
+        permission-resolver:
+          enabled: ${TSB_CORE_SERVICE_PERMISSION_RESOLVER_ENABLED:false}
+          base-url: ${COMMON_BASE_URL:http://localhost:8083/common/api}
+          cache-ttl: 60s
+        client-id: ${TSB_CORE_SERVICE_CLIENT_ID:core-service}
+        client-secret: ${TSB_CORE_SERVICE_CLIENT_SECRET:local-core-service-secret}
+        token-uri: ${TSB_SERVICE_TOKEN_URI:http://localhost:8088/realms/truongsonbank/protocol/openid-connect/token}
+        audience: common-service
+    internal-auth:
+      enabled: true
+      signer-enabled: false
+      verifier-enabled: true
+      hmac-secret: ${TSB_SHARED_INTERNAL_AUTH_HMAC_SECRET:local-dev-secret}
+      issuer: core
+      excluded-paths:
+        - /actuator
+        - /v3/api-docs
+        - /swagger-ui
+        - /swagger-ui.html
+        - /core/api/v1/accounts/open
     kafka:
       enabled: false
     cache:
@@ -30,10 +62,15 @@ tsb:
       export-enabled: true
       service-name: core
       otlp-endpoint: ${TSB_SHARED_TRACING_OTLP_ENDPOINT:http://localhost:4317}
+      identity:
+        enabled: ${TSB_SHARED_TRACING_IDENTITY_ENABLED:true}
+        raw-values: ${TSB_SHARED_TRACING_IDENTITY_RAW_VALUES:false}
+        hash-key: ${TSB_SHARED_TRACING_IDENTITY_HASH_KEY:tsb-local-trace-identity-key}
     logging:
       request:
         enabled: true
-        include-body: true
+        include-headers: true
+        include-body: false
         exclude-paths:
           - /actuator/prometheus
           - /actuator/health

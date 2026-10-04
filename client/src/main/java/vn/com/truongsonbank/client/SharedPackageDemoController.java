@@ -69,7 +69,7 @@ class SharedPackageDemoController {
     }
 
     @ResponseWrapper
-    @RequireEntitlement("TEST2")
+    @RequireEntitlement("TEST99")
     @GetMapping("/shared-test/entitlement/test2")
     Map<String, Object> entitlementTest2() {
         return Map.of("allowed", true, "operation", "TEST2", "service", "client");

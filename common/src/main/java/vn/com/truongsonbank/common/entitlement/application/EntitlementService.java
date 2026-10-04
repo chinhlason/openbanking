@@ -11,14 +11,20 @@ import org.springframework.transaction.annotation.Transactional;
 import vn.com.truongsonbank.common.entitlement.adapter.outbound.persistence.EntitlementSnapshotEntity;
 import vn.com.truongsonbank.common.entitlement.adapter.outbound.persistence.EntitlementSnapshotRepository;
 import vn.com.truongsonbank.common.entitlement.domain.EntitlementErrors;
+import vn.com.truongsonbank.common.entitlement.domain.model.EntitlementChangeEvent;
+import vn.com.truongsonbank.common.entitlement.domain.port.EntitlementEventPublisher;
 import vn.com.truongsonbank.shared.exception.TsbException;
+import vn.com.truongsonbank.shared.security.ServiceAuthErrors;
+import vn.com.truongsonbank.shared.security.ServiceSecurityContextHolder;
 
 @Service
 public class EntitlementService {
     private final EntitlementSnapshotRepository repository;
+    private final EntitlementEventPublisher eventPublisher;
 
-    public EntitlementService(EntitlementSnapshotRepository repository) {
+    public EntitlementService(EntitlementSnapshotRepository repository, EntitlementEventPublisher eventPublisher) {
         this.repository = repository;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional(readOnly = true)
@@ -26,6 +32,21 @@ public class EntitlementService {
         EntitlementSnapshotEntity snapshot = repository.findBySubjectTypeAndSubjectId(normalize(type), id)
                 .orElseThrow(() -> new TsbException(EntitlementErrors.NOT_FOUND));
         return view(snapshot);
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> resolveService(String targetService) {
+        String caller = ServiceSecurityContextHolder.current()
+                .map(vn.com.truongsonbank.shared.security.ServicePrincipal::serviceCode)
+                .orElseThrow(() -> new TsbException(ServiceAuthErrors.MISSING));
+        EntitlementSnapshotEntity callerSnapshot = repository.findBySubjectTypeAndSubjectId("SERVICE", caller).orElse(null);
+        if (callerSnapshot == null || !allowed(view(callerSnapshot), "common.entitlement.resolve")) {
+            throw new TsbException(ServiceAuthErrors.PERMISSION_DENIED);
+        }
+        return repository.findBySubjectTypeAndSubjectId("SERVICE", targetService)
+                .map(this::view)
+                .orElseGet(() -> Map.of("subjectType", "SERVICE", "subjectId", targetService,
+                        "version", 0L, "allow", List.of(), "deny", List.of(), "expiresAt", Instant.now()));
     }
 
     @Transactional
@@ -45,7 +66,9 @@ public class EntitlementService {
             }
             snapshot.update(csv(allow), csv(deny), nextVersion, expiresAt);
         }
-        return view(repository.save(snapshot));
+        Map<String, Object> response = view(repository.save(snapshot));
+        eventPublisher.publish(EntitlementChangeEvent.subject("SNAPSHOT_CHANGED", id));
+        return response;
     }
 
     public boolean allowed(Map<String, Object> snapshot, String operation) {

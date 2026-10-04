@@ -625,7 +625,7 @@ When user taps Continue:
 
 ```text
 1. Disable button
-2. Show inline loading: "Đang kiểm tra thiết bị..."
+2. Show inline loading: "Checking device..."
 3. Call /login/init
 4. Render allowed methods from response
 ```
@@ -637,7 +637,7 @@ Do not ask FaceID before `/login/init`; the server challenge must exist first.
 Recommended behavior:
 
 ```text
-Show "Đăng nhập bằng FaceID/TouchID"
+Show "Log in with FaceID/TouchID"
 Tap button
 Call /login/init if needed
 Open FaceID prompt
@@ -652,7 +652,7 @@ User cancel: keep user on login screen, show small message.
 FaceID fail once: allow retry.
 FaceID fail twice: suggest PIN, but do not hide biometric button.
 Biometric locked: show message to unlock phone with passcode or use PIN.
-Server reject: show "Thiết bị chưa được tin cậy hoặc sinh trắc học chưa được bật."
+Server reject: show "Device is not trusted or biometrics are not enabled."
 ```
 
 ### PIN UX
@@ -661,7 +661,7 @@ Server reject: show "Thiết bị chưa được tin cậy hoặc sinh trắc h�
 Use 6-digit PIN input
 Auto-submit only after 6 digits if API is idle
 Allow backspace and clear
-Show "Quên PIN?" as secondary action, not primary
+Show "Forgot PIN?" as secondary action, not primary
 ```
 
 ### Trusted Device UX
@@ -669,8 +669,8 @@ Show "Quên PIN?" as secondary action, not primary
 After successful login on an untrusted device:
 
 ```text
-Show prompt: "Tin cậy thiết bị này?"
-Explain: "Dùng để bật đăng nhập nhanh và tăng bảo mật DPoP."
+Show prompt: "Trust this device?"
+Explain: "Use this to enable quick login and improve DPoP security."
 Actions:
   Trust this device
   Not now
@@ -696,16 +696,16 @@ Use friendly messages:
 
 ```text
 Invalid credential:
-  "Thông tin đăng nhập không đúng."
+  "Login information is incorrect."
 
 Device not trusted:
-  "Thiết bị chưa được tin cậy. Vui lòng đăng nhập bằng PIN trước."
+  "Device is not trusted. Please log in with PIN first."
 
 Challenge expired:
-  "Phiên xác thực đã hết hạn. Vui lòng thử lại."
+  "Authentication session has expired. Please try again."
 
 DPoP/device mismatch:
-  "Thiết bị xác thực không khớp. Vui lòng đăng nhập lại."
+  "Authentication device does not match. Please log in again."
 ```
 
 ## Implementation Notes

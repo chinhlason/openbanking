@@ -4,22 +4,22 @@ Status: draft, not approved.
 
 ## 1. Scope
 
-Auth phục vụ native app, không dùng web view/web UI.
+Auth serves the native app and does not use a web view/web UI.
 
 Main flows:
 
-- Onboarding bằng phone -> SMS OTP -> NFC CCCD mock -> setup PIN -> vào màn chính.
-- Login bằng phone + PIN. Phone là username chính trong Keycloak.
-- Login bằng FaceID/vân tay qua toggle trên app.
-- Trusted device và device/risk/security checks.
-- Keycloak là identity store/token issuer. App gọi API Keycloak để login.
+- Onboarding with phone -> SMS OTP -> NFC CCCD mock -> setup PIN -> enter main screen.
+- Login with phone + PIN. Phone is the primary username in Keycloak.
+- Login with FaceID/fingerprint through an app toggle.
+- Trusted device and device/risk/security checks.
+- Keycloak is the identity store/token issuer. The app calls the Keycloak API to log in.
 
 Non-goals for first design:
 
-- Không xử lý biometric raw data trên server.
-- Không làm web login page.
-- Không làm eKYC/NFC thật, chỉ mock step nhưng giữ contract.
-- Không làm external fraud engine ngay.
+- Do not process raw biometric data on the server.
+- Do not build a web login page.
+- Do not implement real eKYC/NFC; only mock the step while preserving the contract.
+- Do not build an external fraud engine yet.
 
 ## 2. Recommended Architecture
 

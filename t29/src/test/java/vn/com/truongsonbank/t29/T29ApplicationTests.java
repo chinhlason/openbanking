@@ -45,6 +45,24 @@ class T29ApplicationTests {
                 .andExpect(jsonPath("$.balance", is(25000)));
     }
 
+    @Test
+    void replaysTheSameAccountForTheSameIdempotencyKey() throws Exception {
+        String firstResponse = mvc.perform(post("/accounts")
+                        .header("X-Idempotency-Key", "open-account-test-1")
+                        .contentType("application/json")
+                        .content("{\"cccd\":\"idempotent-001\"}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String accountNumber = firstResponse.replaceAll(".*\\\"accountNumber\\\":\\\"([^\\\"]+)\\\".*", "$1");
+
+        mvc.perform(post("/accounts")
+                        .header("X-Idempotency-Key", "open-account-test-1")
+                        .contentType("application/json")
+                        .content("{\"cccd\":\"different-cccd\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accountNumber", is(accountNumber)));
+    }
+
     private String openAccount(String cccd) throws Exception {
         return mvc.perform(post("/accounts")
                 .contentType("application/json")

@@ -1,14 +1,13 @@
 # Entitlement Enrichment Implementation Plan
 
-## 1. Mục tiêu
+## 1. Goal
 
-Khi request đi qua BFF, BFF phải lấy entitlement mới nhất của subject, tạo authorization context tin cậy, ký context và forward xuống domain. Domain chỉ đọc `AuthContext` đã được sharedpackage verify; client không thể tự gửi hoặc sửa entitlement header.
+When a request passes through BFF, BFF must fetch the subject's latest entitlement, create a trusted authorization context, sign the context and forward it to the domain. Domain only reads the `AuthContext` that has been verified by sharedpackage; clients cannot send or modify entitlement headers themselves.
 
 ```text
 App/Portal
   -> BFF authenticate session/token
-  -> BFF resolve subject
-  -> BFF lookup session in L2
+  -> BFF read Auth session object directly from Redis
   -> BFF lookup role/package metadata in L1
   -> BFF merge concrete operations
   -> BFF sign internal auth context
@@ -16,30 +15,30 @@ App/Portal
   -> @RequireEntitlement authorize
 ```
 
-## 2. Phạm vi
+## 2. Scope
 
-### Bao gồm
+### Included
 
-- Resolve entitlement bằng cách join role/service package trong L2 với metadata operation ở L1.
-- Đọc metadata role/service package từ Common qua service discovery/HTTP client.
-- Cache L1 trong từng BFF instance và L2 Redis.
-- Forward `allow`, `deny`, `version`, `expiresAt` qua signed internal headers.
-- Deny precedence và fail-closed cho API nhạy cảm.
-- Invalidate cache khi entitlement thay đổi.
-- Metrics, trace, audit log và API demo có `@RequireEntitlement`.
+- Resolve entitlements by joining role/service package in L2 with operation metadata in L1.
+- Read role/service package metadata from Common through service discovery/HTTP client.
+- Cache L1 in each BFF instance and L2 Redis.
+- Forward `allow`, `deny`, `version`, `expiresAt` through signed internal headers.
+- Deny precedence and fail-closed for sensitive APIs.
+- Invalidate cache when entitlements change.
+- Metrics, trace, audit log and demo API with `@RequireEntitlement`.
 
-### Không bao gồm
+### Not Included
 
-- Business logic trong BFF.
-- BFF tự tính package/group graph.
-- Lưu entitlement trong database BFF.
-- Kick session khi quyền thay đổi.
+- Business logic in BFF.
+- BFF calculating the package/group graph itself.
+- Storing entitlements in the BFF database.
+- Kicking sessions when permissions change.
 
-## 3. Mô hình cache chốt
+## 3. Final Cache Model
 
 ### L1: entitlement metadata
 
-L1 lưu metadata entitlement theo `servicePackage` hoặc `role`, không lưu dữ liệu user/session. Metadata gồm group và các operation cụ thể:
+L1 stores entitlement metadata by `servicePackage` or `role`; it does not store user/session data. Metadata includes groups and concrete operations:
 
 ```json
 {
@@ -57,25 +56,29 @@ L1: bff:entitlement:metadata:package:{packageCode}:{version}
 L1: bff:entitlement:metadata:role:{roleCode}:{version}
 ```
 
-### L2: session authorization projection
+### L2: Auth session object
 
-L2 là session object do Auth phát hành. BFF lookup session bằng `sessionId` để lấy subject, role và service package; không cần lưu toàn bộ operation list trong session.
+L2 is the session object issued and owned by Auth. BFF only reads Redis directly by `sessionId` to get
+subject, role and service package; BFF does not call the Auth introspection API and does not create another projection.
 
 ```json
 {
   "sessionId": "sid-123",
-  "subjectType": "CUSTOMER",
-  "subjectId": "customer-001",
-  "roles": ["CUSTOMER"],
+  "subject": "keycloak-subject-id",
+  "customerId": "customer-001",
+  "username": "customer-name",
+  "deviceId": "device-001",
+  "dpopJkt": "device-key-thumbprint",
+  "trustedDevice": true,
+  "roles": [],
   "servicePackages": ["PREMIUM"],
-  "status": "ACTIVE",
-  "idleExpiresAt": "2026-10-04T12:00:00Z",
-  "absoluteExpiresAt": "2026-10-05T12:00:00Z"
+  "createdAt": "2026-10-04T11:50:00Z",
+  "expiresAt": "2026-10-04T12:00:00Z"
 }
 ```
 
 ```text
-L2: auth:session:{sessionId}
+L2: tsb:auth:session:{sessionId}
 ```
 
 Resolution:
@@ -87,14 +90,14 @@ sessionId -> L2 session -> roles/servicePackages -> L1 metadata
 
 ## 4. Contract Common
 
-BFF gọi qua downstream client tới Common để lấy metadata entitlement:
+BFF calls Common through a downstream client to fetch entitlement metadata:
 
 ```http
 GET /common/api/entitlements/metadata/packages/{packageCode}
 GET /common/api/entitlements/metadata/roles/{roleCode}
 ```
 
-Response chuẩn:
+Standard response:
 
 ```json
 {
@@ -111,33 +114,30 @@ Response chuẩn:
 }
 ```
 
-Common là source of truth cho metadata. Common có thể materialize metadata từ package/group/override; BFF chỉ merge các metadata đã được trả về, không tự truy cập DB hoặc tự tính graph business.
+Common is the source of truth for metadata. Common may materialize metadata from package/group/override; BFF only merges the returned metadata and does not access the DB directly or calculate the business graph itself.
 
 ## 5. BFF resolution flow
 
-1. Xác thực mobile session hoặc portal token.
-2. Lookup session projection trong L2 `auth:session:{sessionId}`.
-3. Lấy subject, roles và service packages từ session.
-4. Lookup metadata của từng role/service package trong L1.
-5. L1 miss/stale thì gọi Common để lấy metadata rồi ghi lại L1.
-6. Merge operation; deny luôn có precedence.
-7. Xóa mọi entitlement header do client gửi.
-8. Gắn operation list vào signed auth context.
-9. Ký request và forward xuống domain.
+1. Receive mobile `sessionId` or portal token.
+2. For mobile, read the session object in Redis at `tsb:auth:session:{sessionId}` and check `sessionId`, TTL, `expiresAt`.
+3. Get subject, roles and service packages from the session.
+4. Look up metadata for each role/service package in L1.
+5. If L1 misses/is stale, call Common to fetch metadata and write it back to L1.
+6. Merge operations; deny always has precedence.
+7. Remove all entitlement headers sent by the client.
+8. Attach the operation list to the signed auth context.
+9. Sign the request and forward it to the domain.
 
 ```mermaid
 sequenceDiagram
   participant App
   participant BFF
-  participant Auth
   participant L2 as Redis Session L2
   participant L1 as BFF L1 Metadata
   participant Common
   participant Domain
   App->>BFF: Request + session/token
-  BFF->>Auth: Validate identity/session
-  Auth-->>BFF: Subject context
-  BFF->>L2: Lookup auth:session:{sessionId}
+  BFF->>L2: GET tsb:auth:session:{sessionId}
   L2-->>BFF: Subject + roles + servicePackages
   BFF->>L1: Lookup role/package metadata
   alt L1 miss or stale
@@ -188,13 +188,14 @@ Keys:
 ```text
 L1: bff:entitlement:metadata:package:{packageCode}:{version}
 L1: bff:entitlement:metadata:role:{roleCode}:{version}
-L2: auth:session:{sessionId}
+L2: tsb:auth:session:{sessionId}
 ```
 
 Rules:
 
 - L1 metadata TTL short, for example 30-60 seconds, and version-aware.
-- L2 session TTL follows idle and absolute session expiry.
+- L2 session TTL is managed by Auth and must match `expiresAt` in the session object.
+- BFF only reads L2; Auth is responsible for creating, keep-alive, trusted device, revoke and session deletion.
 - Newer metadata version replaces older version only.
 - Never serve expired metadata for sensitive operations.
 - Entitlement changes do not revoke sessions.
@@ -216,26 +217,27 @@ BFF must not silently grant access when Common, Redis or snapshot validation fai
 
 ## 9. Implementation steps
 
-## 10. Trạng thái triển khai hiện tại
+## 10. Current Implementation Status
 
-### Đã triển khai
+### Implemented
 
-- Common materializes metadata cho service package từ package/group/operation bindings.
-- Common expose `GET /entitlements/admin/metadata/packages/{code}`.
-- Auth session projection có `roles` và `servicePackages`, được lưu trong Redis session JSON.
-- Onboarding gán package mặc định `STANDARD`, bind Keycloak subject với internal `customerId`, rồi cập nhật session hiện tại.
-- Các lần login sau Auth resolve `customerId` từ identity link và hydrate package từ Common; Keycloak không lưu phân quyền.
-- BFF introspect session, cache metadata package ở L1 in-memory với TTL 60 giây, merge operation và deny precedence.
-- BFF ký internal auth headers theo downstream path thực tế trước khi forward.
-- Sharedpackage verify HMAC signature và hỗ trợ `@RequireEntitlement`.
-- Client demo có endpoint `GET /shared-test/entitlement/test2` yêu cầu operation `TEST2`.
-- Đã smoke test qua BFF với kết quả `200` khi được cấp `TEST2`; package `STANDARD` chưa có operation nên trả `403` đúng thiết kế.
+- Common materializes service package metadata from package/group/operation bindings.
+- Common exposes `GET /entitlements/admin/metadata/packages/{code}`.
+- Auth session projection has `roles` and `servicePackages`, stored in Redis session JSON.
+- Onboarding assigns the default `STANDARD` package, binds the Keycloak subject to the internal `customerId`, then updates the current session.
+- On later logins, Auth resolves `customerId` from the identity link and hydrates packages from Common; Keycloak does not store authorization data.
+- BFF reads the Auth session directly from Redis, caches package metadata in in-memory L1 with a 60-second TTL,
+  merges operations and deny precedence.
+- BFF signs internal auth headers using the actual downstream path before forwarding.
+- Sharedpackage verifies the HMAC signature and supports `@RequireEntitlement`.
+- Client demo has endpoint `GET /shared-test/entitlement/test2` requiring operation `TEST2`.
+- Smoke tested through BFF with result `200` when `TEST2` is granted; package `STANDARD` has no operation yet, so it returns `403` as designed.
 
-### Giới hạn cần xử lý ở phase tiếp theo
+### Limits to Address in the Next Phase
 
-- Role metadata và user override chưa được đưa vào resolver BFF.
-- L1 hiện là cache cục bộ trong từng BFF instance; chưa có event invalidation Redis/Kafka giữa nhiều instance.
-- Common metadata endpoint đang dùng admin key nội bộ cho smoke test; production nên thay bằng internal service authentication.
+- Role metadata and user override have not been added to the BFF resolver yet.
+- L1 is currently a local cache in each BFF instance; there is no Redis/Kafka event invalidation across multiple instances yet.
+- The Common metadata endpoint is using an internal admin key for smoke tests; production should replace it with internal service authentication.
 
 ### Step 1: sharedpackage contract
 
@@ -258,9 +260,9 @@ BFF must not silently grant access when Common, Redis or snapshot validation fai
 ### Step 3: BFF resolver
 
 - Add `EntitlementResolver` port.
-- Add Common HTTP adapter cho metadata role/service package.
-- Đọc session projection từ Auth Redis L2.
-- Add L1 metadata cache; không copy toàn bộ operation list vào session.
+- Add Common HTTP adapter for role/service package metadata.
+- Read session projection from Auth Redis L2.
+- Add L1 metadata cache; do not copy the full operation list into the session.
 - Add single-flight protection for concurrent metadata misses.
 - Add request filter integration after session/token authentication.
 - Strip spoofable headers before signing.
@@ -281,6 +283,19 @@ BFF must not silently grant access when Common, Redis or snapshot validation fai
 - Login as the customer through BFF.
 - Call protected endpoint and inspect `200` or `403`.
 - Change package, wait for/invoke invalidation, call again without logging out.
+
+### 5.1 Entitlement Cache Invalidation
+
+Common publishes a Redis Pub/Sub event on `tsb:entitlement:changed` after the database transaction commits.
+The event contains `changeType`, `scope`, `packageCode` and `subjectId`:
+
+- `scope=PACKAGE`: BFF removes only that package from its L1 metadata cache.
+- `scope=ALL`: BFF clears the complete L1 metadata cache for operation, group or global binding changes.
+- `scope=SUBJECT`: do not modify the current session. If the service package attached to the user changes, the new data takes effect
+  after the next login. The notification system will notify the user in a later phase.
+
+Every BFF instance subscribes to the same Redis channel. A failed publish is logged and does not roll back the
+database transaction; the L1 TTL remains the fallback consistency boundary.
 
 ## 10. Acceptance criteria
 

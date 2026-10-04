@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.springframework.http.HttpMethod;
+
 class TsbProtocolPolicyResolver {
     private final ProtocolProperties properties;
     private final Map<String, List<AnnotatedOperation>> annotatedOperations = new ConcurrentHashMap<>();
@@ -14,13 +16,20 @@ class TsbProtocolPolicyResolver {
         this.properties = properties;
     }
 
-    void register(String downstream, String path, TsbOperation annotation) {
-        if (annotation == null || path == null || path.isBlank()) {
+    void register(String downstream, HttpMethod method, String path, TsbOperation annotation) {
+        if (path == null || path.isBlank()) {
             return;
         }
-        String operation = annotation.value().isBlank() ? path : annotation.value();
-        annotatedOperations.computeIfAbsent(downstream, key -> new ArrayList<>())
-                .add(new AnnotatedOperation(path, operation, policy(annotation)));
+        List<AnnotatedOperation> operations = annotatedOperations.computeIfAbsent(downstream, key -> new ArrayList<>());
+        String normalizedPath = normalize(path);
+        String operation = annotation == null || annotation.value().isBlank()
+                ? (method == null ? normalizedPath : method.name() + " " + normalizedPath)
+                : annotation.value();
+        if (operations.stream().anyMatch(existing -> sameMapping(existing, method, normalizedPath))) {
+            throw new IllegalStateException("Duplicate HTTP client operation mapping for downstream '"
+                    + downstream + "': " + method + " " + normalizedPath);
+        }
+        operations.add(new AnnotatedOperation(method, normalizedPath, operation, policy(annotation)));
     }
 
     ResolvedProtocolPolicy resolve(String downstream, String operation) {
@@ -33,14 +42,19 @@ class TsbProtocolPolicyResolver {
         return new ResolvedProtocolPolicy(downstream, operation, defaults, downstreamPolicy, operationPolicy);
     }
 
-    String operationForPath(String downstream, String path) {
+    String operationForRequest(String downstream, HttpMethod method, String path) {
         List<AnnotatedOperation> operations = annotatedOperations.getOrDefault(downstream, List.of());
         for (AnnotatedOperation operation : operations) {
-            if (matches(operation.path(), path)) {
+            if ((operation.method() == null || operation.method().equals(method))
+                    && matches(operation.path(), path)) {
                 return operation.operation();
             }
         }
         return null;
+    }
+
+    String operationForPath(String downstream, String path) {
+        return operationForRequest(downstream, null, path);
     }
 
     private ProtocolProperties.Policy annotatedPolicy(String downstream, String operation) {
@@ -57,6 +71,9 @@ class TsbProtocolPolicyResolver {
     }
 
     private ProtocolProperties.Policy policy(TsbOperation annotation) {
+        if (annotation == null) {
+            return null;
+        }
         ProtocolProperties.Policy policy = new ProtocolProperties.Policy();
         policy.setResponseTimeout(duration(annotation.responseTimeout()));
 
@@ -113,6 +130,7 @@ class TsbProtocolPolicyResolver {
         merged.setRetry(second.getRetry() == null ? first.getRetry() : second.getRetry());
         merged.setCircuitBreaker(second.getCircuitBreaker() == null ? first.getCircuitBreaker() : second.getCircuitBreaker());
         merged.setLog(second.getLog() == null ? first.getLog() : second.getLog());
+        merged.setServiceAuth(second.getServiceAuth() == null ? first.getServiceAuth() : second.getServiceAuth());
         return merged;
     }
 
@@ -133,9 +151,14 @@ class TsbProtocolPolicyResolver {
         return Duration.parse(value);
     }
 
+    private boolean sameMapping(AnnotatedOperation existing, HttpMethod method, String path) {
+        return (existing.method() == null ? method == null : existing.method().equals(method))
+                && existing.path().equals(path);
+    }
+
     private boolean matches(String template, String path) {
-        String[] templateParts = template.split("/");
-        String[] pathParts = path.split("/");
+        String[] templateParts = normalize(template).split("/");
+        String[] pathParts = normalize(path).split("/");
         if (templateParts.length != pathParts.length) {
             return false;
         }
@@ -148,6 +171,22 @@ class TsbProtocolPolicyResolver {
         return true;
     }
 
-    private record AnnotatedOperation(String path, String operation, ProtocolProperties.Policy policy) {
+    private String normalize(String path) {
+        String value = path == null ? "" : path.split("\\?", 2)[0].trim();
+        if (value.isBlank()) {
+            return "/";
+        }
+        value = value.replaceAll("/{2,}", "/");
+        if (!value.startsWith("/")) {
+            value = "/" + value;
+        }
+        if (value.length() > 1 && value.endsWith("/")) {
+            value = value.substring(0, value.length() - 1);
+        }
+        return value;
+    }
+
+    private record AnnotatedOperation(HttpMethod method, String path, String operation,
+                                      ProtocolProperties.Policy policy) {
     }
 }

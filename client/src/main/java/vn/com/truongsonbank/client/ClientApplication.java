@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.service.annotation.GetExchange;
 import vn.com.truongsonbank.client.customer.config.CustomerOnboardingProperties;
 import vn.com.truongsonbank.shared.protocol.TsbGrpcClientFactory;
+import vn.com.truongsonbank.shared.protocol.EnableTsbHttpClients;
+import vn.com.truongsonbank.shared.protocol.TsbHttpClient;
 import vn.com.truongsonbank.shared.protocol.TsbHttpClientFactory;
 import vn.com.truongsonbank.shared.protocol.TsbOperation;
 import vn.com.truongsonbank.grpc.demo.DemoEchoServiceGrpc;
@@ -16,15 +18,11 @@ import java.util.Map;
 
 @SpringBootApplication
 @EnableConfigurationProperties(CustomerOnboardingProperties.class)
+@EnableTsbHttpClients
 public class ClientApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(ClientApplication.class, args);
-    }
-
-    @Bean
-    ClientSelfHttpClient clientSelfHttpClient(TsbHttpClientFactory factory) {
-        return factory.httpInterface("client-self", ClientSelfHttpClient.class);
     }
 
     @Bean
@@ -39,6 +37,7 @@ public class ClientApplication {
 
 }
 
+@TsbHttpClient(downstream = "client-self")
 interface ClientSelfHttpClient {
     @TsbOperation(value = "get-cache", responseTimeout = "1s")
     @GetExchange("/shared-test/cache/{id}")

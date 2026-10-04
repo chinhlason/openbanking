@@ -1,27 +1,27 @@
 # Entitlement Design
 
-## 1. Mục tiêu
+## 1. Goal
 
-Entitlement trả lời câu hỏi một subject có được thực hiện một operation hay không.
+Entitlement answers whether a subject is allowed to perform an operation.
 
 ```text
 customer -> service package -> entitlement group -> operation
 staff/client/system -> role/system -> entitlement group -> operation
 ```
 
-Authentication xác định subject; entitlement xác định subject được làm gì. Operation độc lập, ví dụ `TRANSFER`, `TRANSFER_GLOBAL`, `PAYMENT`; có một operation không tự cấp operation khác.
+Authentication identifies the subject; entitlement determines what the subject may do. Operations are independent, for example `TRANSFER`, `TRANSFER_GLOBAL`, `PAYMENT`; one operation does not automatically grant another operation.
 
-## 2. Quy tắc quyết định
+## 2. Decision Rules
 
-Authorization dùng default-deny:
+Authorization uses default-deny:
 
 ```text
 explicit user deny > explicit user allow > package/group deny > package/group allow > default deny
 ```
 
-Group có quan hệ cha-con nhưng quyền ở group cha không tự động cấp operation của group con. Một group có thể có nhiều operation và một operation có thể thuộc nhiều group.
+Groups have parent-child relationships, but permissions in a parent group do not automatically grant operations from a child group. A group can have many operations, and an operation can belong to many groups.
 
-Để giảm dữ liệu, package/group có thể dùng deny-list cho các operation bị cấm trong một bộ operation chuẩn. Engine vẫn default-deny; deny-list không biến thành allow toàn hệ thống.
+To reduce data, a package/group may use a deny-list for operations that are forbidden within a standard operation set. The engine remains default-deny; a deny-list does not become a system-wide allow.
 
 ## 3. Schema DB
 
@@ -64,15 +64,15 @@ customer_id, service_package_id(FK), status,
 effective_from, effective_to(nullable), created_at, updated_at
 ```
 
-Khi onboarding customer hoàn tất, hệ thống tự gán service package `STANDARD`. Package này liên kết với group
-`STANDARD`; group mặc định chưa có operation và quyền sẽ được bổ sung qua entitlement catalog sau.
+When customer onboarding completes, the system automatically assigns the `STANDARD` service package. This package is linked to the
+`STANDARD` group; the default group does not have operations yet, and permissions will be added later through the entitlement catalog.
 
-Keycloak chỉ quản lý identity/credential. Service package, operation và Config của Common thuộc database `entitlementdb`, là database duy nhất do Common sở hữu; Redis auth session
-chỉ giữ projection `customerId` và `servicePackages` để BFF tra metadata nhanh.
+Keycloak only manages identity/credentials. Service packages, operations and Common configuration belong to the `entitlementdb` database, the only database owned by Common; the Redis auth session
+only keeps the `customerId` and `servicePackages` projection so BFF can look up metadata quickly.
 
 ### `principal_entitlement_group`
 
-Dùng cho staff, client và system:
+Used for staff, client and system:
 
 ```text
 principal_type, principal_id, group_id(FK), effect(ALLOW/DENY),
@@ -81,14 +81,14 @@ effective_from, effective_to(nullable), created_at
 
 ### `user_entitlement_override`
 
-Dùng cho quyền custom của từng customer/user:
+Used for custom permissions for each customer/user:
 
 ```text
 subject_type, subject_id, operation_id(FK), effect(ALLOW/DENY),
 reason, approved_by, effective_from, effective_to, version, created_at, updated_at
 ```
 
-Custom permission phải có actor, lý do, thời hạn và khả năng revoke. Client không được tự tạo override.
+Custom permissions must have an actor, reason, duration and revocation capability. Clients are not allowed to create overrides themselves.
 
 ### `entitlement_audit_log`
 
@@ -97,11 +97,11 @@ id, subject_type, subject_id, operation, target_type, target_id,
 old_value(json), new_value(json), actor_id, trace_id, created_at
 ```
 
-Mọi thay đổi operation, group, package và override đều phải audit.
+Every operation, group, package and override change must be audited.
 
-## 4. Snapshot và cache
+## 4. Snapshot and Cache
 
-Snapshot customer mẫu:
+Sample customer snapshot:
 
 ```json
 {
@@ -114,14 +114,14 @@ Snapshot customer mẫu:
 }
 ```
 
-Snapshot chỉ là cache, không thay thế DB nguồn.
+The snapshot is only a cache and does not replace the source DB.
 
-Kiến trúc cache chốt tách thành hai lớp:
+The finalized cache architecture is split into two layers:
 
-- **L1 BFF**: cache metadata entitlement của role/service package, gồm group và operation cụ thể.
-- **L2 Redis**: cache session projection gồm subject, role và service package; không cần lưu toàn bộ operation list.
+- **L1 BFF**: caches role/service package entitlement metadata, including groups and concrete operations.
+- **L2 Redis**: caches the session projection, including subject, role and service package; it does not need to store the full operation list.
 
-BFF lookup session trong L2, lookup metadata tương ứng trong L1, merge operation rồi gắn vào signed header trước khi forward xuống domain.
+BFF looks up the session in L2, looks up corresponding metadata in L1, merges operations, then attaches them to signed headers before forwarding to the domain.
 
 ```text
 L1 BFF:    bff:entitlement:metadata:package:{packageCode}:{version}
@@ -129,18 +129,18 @@ L1 BFF:    bff:entitlement:metadata:role:{roleCode}:{version}
 Redis L2:  auth:session:{sessionId}
 ```
 
-Khi quyền thay đổi:
+When permissions change:
 
-1. Ghi DB trong transaction.
-2. Tăng version.
-3. Ghi outbox/event.
+1. Write the DB in a transaction.
+2. Increment the version.
+3. Write outbox/event.
 4. Publish Redis/Kafka event.
-5. Các BFF instance invalidate metadata L1 bị ảnh hưởng.
-6. Request sau đọc snapshot mới.
+5. BFF instances invalidate affected L1 metadata.
+6. Subsequent requests read the new snapshot.
 
-Không kick session chỉ vì entitlement đổi. Redis lỗi hoặc cache miss phải fail closed với operation nhạy cảm.
+Do not kick sessions only because entitlements changed. Redis errors or cache misses must fail closed for sensitive operations.
 
-Event mẫu:
+Sample event:
 
 ```json
 {
@@ -154,15 +154,15 @@ Event mẫu:
 }
 ```
 
-## 5. BFF và domain context
+## 5. BFF and Domain Context
 
 ### 5.1 Entitlement enrichment
 
-BFF là lớp enrichment trước khi forward request xuống domain. Sau khi xác thực session/token, BFF đọc session projection từ L2, lấy role/service package, lookup operation metadata từ L1, merge allow/deny, validate version/expiry rồi mới tạo signed auth context. BFF không nhận entitlement header từ client.
+BFF is the enrichment layer before forwarding requests to the domain. After validating the session/token, BFF reads the session projection from L2, gets role/service package, looks up operation metadata from L1, merges allow/deny, validates version/expiry, and only then creates a signed auth context. BFF does not accept entitlement headers from clients.
 
-Chi tiết implementation, cache, failure policy và test matrix nằm trong [entitlement-enrichment-implementation-plan.md](entitlement-enrichment-implementation-plan.md).
+Implementation details, cache, failure policy and test matrix are in [entitlement-enrichment-implementation-plan.md](entitlement-enrichment-implementation-plan.md).
 
-BFF xóa các header auth do client gửi, tạo context mới và ký bằng HMAC nội bộ:
+BFF removes auth headers sent by the client, creates a new context and signs it with internal HMAC:
 
 ```text
 X-Auth-Subject-Id
@@ -170,20 +170,20 @@ X-Auth-Subject-Type
 X-Auth-User-Id
 X-Auth-Roles
 X-Auth-Entitlement-Version
-X-Auth-Entitlements hoặc X-Auth-Entitlement-Ref
+X-Auth-Entitlements or X-Auth-Entitlement-Ref
 X-Auth-Trusted-Device
 X-Auth-Context-Timestamp
 X-Auth-Context-Id
 X-Auth-Signature
 ```
 
-Khuyến nghị dùng `X-Auth-Entitlement-Ref` khi danh sách quyền lớn. Payload HMAC tối thiểu gồm method, path, trace id, subject id, entitlement version, timestamp và context id.
+Recommended to use `X-Auth-Entitlement-Ref` when the permission list is large. The minimum HMAC payload includes method, path, trace id, subject id, entitlement version, timestamp and context id.
 
-Domain chỉ tin context khi chữ ký hợp lệ, timestamp còn hiệu lực, context id chưa replay và snapshot chưa hết hạn.
+Domain only trusts the context when the signature is valid, the timestamp is still valid, the context id has not been replayed and the snapshot has not expired.
 
-## 6. Annotation domain
+## 6. Domain Annotation
 
-Sharedpackage cung cấp:
+Sharedpackage provides:
 
 ```java
 @RequireEntitlement("TRANSFER")
@@ -192,7 +192,7 @@ public TransferResponse transfer(TransferCommand command) {
 }
 ```
 
-Có thể kết hợp:
+Can be combined with:
 
 ```java
 @RequireRole("CUSTOMER")
@@ -200,9 +200,9 @@ Có thể kết hợp:
 @RequireTrustedDevice
 ```
 
-Interceptor/AOP sẽ đọc verified `AuthContext`, kiểm tra subject, chữ ký, version, expiry và allow/deny snapshot.
+Interceptor/AOP will read the verified `AuthContext`, check subject, signature, version, expiry and allow/deny snapshot.
 
-Thiếu auth context trả `401`; có context nhưng thiếu entitlement trả `403`.
+Missing auth context returns `401`; having a context but missing entitlement returns `403`.
 
 ```text
 AUTH_CONTEXT_MISSING
@@ -212,7 +212,7 @@ ENTITLEMENT_EXPIRED
 ENTITLEMENT_VERSION_STALE
 ```
 
-## 7. API dự kiến
+## 7. Expected API
 
 ```text
 GET    /common/api/entitlements/operations
@@ -233,7 +233,7 @@ POST   /common/api/subjects/{type}/{id}/overrides
 DELETE /common/api/subjects/{type}/{id}/overrides/{overrideId}
 ```
 
-API quản trị cần admin authorization, optimistic version check, audit log và idempotency cho các lệnh ghi.
+Administrative APIs need admin authorization, optimistic version checks, audit logs and idempotency for write commands.
 
 ## 8. Flow
 
@@ -256,22 +256,22 @@ sequenceDiagram
   BFF-->>App: Response
 ```
 
-## 9. Phạm vi triển khai
+## 9. Implementation Scope
 
 ### Phase 1
 
 - Schema operation/group/service package.
 - Customer package assignment.
 - Snapshot entitlement.
-- BFF L1/L2 cache và signed auth context.
-- `@RequireEntitlement` trong sharedpackage.
-- Một endpoint demo `TRANSFER`.
+- BFF L1/L2 cache and signed auth context.
+- `@RequireEntitlement` in sharedpackage.
+- One demo endpoint `TRANSFER`.
 
 ### Phase 2
 
-- Group hierarchy đầy đủ.
+- Full group hierarchy.
 - Staff/client/system binding.
-- Custom override có approval, expiry và revoke.
+- Custom override with approval, expiry and revoke.
 - Redis invalidation event.
 - Audit metrics/dashboard.
 
@@ -284,11 +284,11 @@ sequenceDiagram
 
 ## 10. Acceptance criteria
 
-- Client không thể giả mạo entitlement header.
-- Có package phù hợp thì operation thành công.
-- Không có quyền trả `403 ENTITLEMENT_DENIED`.
-- User deny thắng package allow.
-- Đổi package cập nhật các BFF L1 mà không logout.
-- Cache miss/Redis down không mở quyền ngoài ý muốn.
-- Domain kiểm tra quyền bằng annotation.
-- Mọi thay đổi quyền có audit log và trace id.
+- Client cannot spoof entitlement headers.
+- With the appropriate package, the operation succeeds.
+- Without permission, return `403 ENTITLEMENT_DENIED`.
+- User deny wins over package allow.
+- Changing a package updates BFF L1 caches without logout.
+- Cache miss/Redis down does not unintentionally grant permissions.
+- Domain checks permissions through annotations.
+- Every permission change has an audit log and trace id.

@@ -35,6 +35,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import vn.com.truongsonbank.shared.security.AuthContextHolder;
 import vn.com.truongsonbank.shared.security.AuthHeaderSigner;
 import vn.com.truongsonbank.shared.security.InternalAuthHeaders;
+import vn.com.truongsonbank.shared.security.ServiceTokenManager;
 
 class TsbProtocolClientHttpRequestInterceptor {
     static final String OPERATION_HEADER = "X-TSB-Operation";
@@ -45,18 +46,21 @@ class TsbProtocolClientHttpRequestInterceptor {
     private final TsbCircuitBreakerRegistry circuitBreakers;
     private final ObjectProvider<Tracer> tracer;
     private final ObjectProvider<AuthHeaderSigner> authHeaderSigner;
+    private final ObjectProvider<ServiceTokenManager> serviceTokenManager;
 
     TsbProtocolClientHttpRequestInterceptor(
             TsbProtocolPolicyResolver policyResolver,
             TsbProtocolInstrumentation instrumentation,
             TsbCircuitBreakerRegistry circuitBreakers,
             ObjectProvider<Tracer> tracer,
-            ObjectProvider<AuthHeaderSigner> authHeaderSigner) {
+            ObjectProvider<AuthHeaderSigner> authHeaderSigner,
+            ObjectProvider<ServiceTokenManager> serviceTokenManager) {
         this.policyResolver = policyResolver;
         this.instrumentation = instrumentation;
         this.circuitBreakers = circuitBreakers;
         this.tracer = tracer;
         this.authHeaderSigner = authHeaderSigner;
+        this.serviceTokenManager = serviceTokenManager;
     }
 
     ClientHttpRequestInterceptor forDownstream(String downstream) {
@@ -70,7 +74,8 @@ class TsbProtocolClientHttpRequestInterceptor {
             ClientHttpRequestExecution execution) throws IOException {
         String operation = operation(request);
         if (operation == null) {
-            operation = policyResolver.operationForPath(downstream, request.getURI().getPath());
+            operation = policyResolver.operationForRequest(
+                    downstream, request.getMethod(), request.getURI().getPath());
         }
         if (operation == null) {
             operation = request.getMethod().name() + " " + request.getURI().getPath();
@@ -78,6 +83,7 @@ class TsbProtocolClientHttpRequestInterceptor {
         propagateContext(request);
         signInternalAuth(request);
         ResolvedProtocolPolicy policy = policyResolver.resolve(downstream, operation);
+        attachServiceToken(request, policy.serviceAuth());
         CircuitBreaker circuitBreaker = null;
         if (policy.circuitBreaker().isEnabled()) {
             circuitBreaker = circuitBreakers.get(policy);
@@ -88,6 +94,7 @@ class TsbProtocolClientHttpRequestInterceptor {
         }
 
         int maxAttempts = 1 + Math.max(policy.retry().getAttempts(), 0);
+        boolean serviceTokenRefreshed = false;
         boolean retryAllowed = retryAllowed(request, policy);
         IOException lastError = null;
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -96,6 +103,19 @@ class TsbProtocolClientHttpRequestInterceptor {
                 ClientHttpResponse response = executeWithTimeout(policy.responseTimeout(), request, body, execution);
                 int status = response.getStatusCode().value();
                 Duration duration = Duration.ofNanos(System.nanoTime() - startNanos);
+                if (status == 401 && policy.serviceAuth().isEnabled()
+                        && policy.serviceAuth().isRetryOnUnauthorizedOnce() && !serviceTokenRefreshed) {
+                    ServiceTokenManager manager = serviceTokenManager.getIfAvailable();
+                    if (manager != null) {
+                        manager.evict(policy.serviceAuth());
+                        attachServiceToken(request, policy.serviceAuth());
+                        response.close();
+                        serviceTokenRefreshed = true;
+                        instrumentation.count("service-token-refresh", downstream, operation, "unauthorized");
+                        maxAttempts = Math.max(maxAttempts, attempt + 1);
+                        continue;
+                    }
+                }
                 boolean retryableStatus = retryableStatus(response.getStatusCode());
                 if (retryableStatus && retryAllowed && attempt < maxAttempts) {
                     record(circuitBreaker, duration, new IOException("Retryable HTTP status " + status));
@@ -189,6 +209,17 @@ class TsbProtocolClientHttpRequestInterceptor {
         stripInternalHeaders(request.getHeaders());
         signer.signedHeaders(request.getMethod().name(), request.getURI().getRawPath(), AuthContextHolder.current().orElseThrow())
                 .forEach(request.getHeaders()::set);
+    }
+
+    private void attachServiceToken(HttpRequest request, ProtocolProperties.ServiceAuth serviceAuth) {
+        if (serviceAuth == null || !serviceAuth.isEnabled()) {
+            return;
+        }
+        ServiceTokenManager manager = serviceTokenManager.getIfAvailable();
+        if (manager == null) {
+            throw new vn.com.truongsonbank.shared.exception.TsbException(vn.com.truongsonbank.shared.security.ServiceAuthErrors.TOKEN_FETCH_FAILED);
+        }
+        request.getHeaders().setBearerAuth(manager.getToken(serviceAuth));
     }
 
     private void stripInternalHeaders(HttpHeaders headers) {

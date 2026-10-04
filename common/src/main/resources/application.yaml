@@ -52,10 +52,14 @@ tsb:
       service-name: common
       otlp-endpoint: http://localhost:4317
       export-timeout: 5s
+      identity:
+        enabled: ${TSB_SHARED_TRACING_IDENTITY_ENABLED:true}
+        raw-values: ${TSB_SHARED_TRACING_IDENTITY_RAW_VALUES:false}
+        hash-key: ${TSB_SHARED_TRACING_IDENTITY_HASH_KEY:tsb-local-trace-identity-key}
     logging:
       request:
         enabled: true
-        include-headers: false
+        include-headers: true
         include-query-string: true
         include-body: true
         max-body-length: 4096
@@ -64,9 +68,17 @@ tsb:
         max-body-length: 4096
     health:
       enabled: false
-  common:
+    security:
+      service-auth:
+        enabled: ${TSB_COMMON_SERVICE_AUTH_ENABLED:false}
+        service-code: common-service
+        issuer-uri: ${AUTH_KEYCLOAK_INTERNAL_ISSUER_URI:http://localhost:8088/realms/truongsonbank}
+        jwk-set-uri: ${AUTH_KEYCLOAK_JWKS_URI:http://localhost:8088/realms/truongsonbank/protocol/openid-connect/certs}
+        expected-audience: common-service
     config:
       admin-api-key: ${COMMON_CONFIG_ADMIN_API_KEY:local-admin-key}
       bootstrap-clients:
         client: ${CLIENT_CONFIG_API_KEY:local-config-key}
       redis-channel: tsb:config:changed
+    entitlement:
+      redis-channel: ${COMMON_ENTITLEMENT_REDIS_CHANNEL:tsb:entitlement:changed}

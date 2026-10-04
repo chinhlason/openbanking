@@ -15,8 +15,6 @@ services:
     build:
       context: ../client
     container_name: tsb-client
-    command:
-      - --tsb.shared.protocol.downstreams.client2-grpc.target=client2:9092
     depends_on:
       mysql:
         condition: service_healthy
@@ -37,6 +35,9 @@ services:
       SERVER_PORT: 8081
       SPRING_DATA_REDIS_HOST: redis
       TSB_SHARED_TRACING_OTLP_ENDPOINT: http://otel-collector:4317
+      TSB_SHARED_TRACING_IDENTITY_ENABLED: ${TSB_SHARED_TRACING_IDENTITY_ENABLED:-true}
+      TSB_SHARED_TRACING_IDENTITY_RAW_VALUES: ${TSB_SHARED_TRACING_IDENTITY_RAW_VALUES:-false}
+      TSB_SHARED_TRACING_IDENTITY_HASH_KEY: ${TSB_SHARED_TRACING_IDENTITY_HASH_KEY:-tsb-local-trace-identity-key}
       TSB_SHARED_INTERNAL_AUTH_HMAC_SECRET: local-dev-secret
       TSB_SHARED_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       TSB_SHARED_KAFKA_CLIENT_ID: client
@@ -52,6 +53,13 @@ services:
       AUTH_ONBOARDING_INTERNAL_SECRET: local-onboarding-secret
       ENTITLEMENT_ADMIN_KEY: local-admin-key
       DEFAULT_SERVICE_PACKAGE: STANDARD
+      TSB_CLIENT_SERVICE_AUTH_ENABLED: "true"
+      TSB_CLIENT_CORE_SERVICE_AUTH_ENABLED: "true"
+      TSB_CLIENT_SERVICE_CLIENT_ID: client-service
+      TSB_CLIENT_SERVICE_CLIENT_SECRET: local-client-service-secret
+      TSB_SERVICE_TOKEN_URI: http://keycloak:8080/realms/truongsonbank/protocol/openid-connect/token
+      AUTH_KEYCLOAK_INTERNAL_ISSUER_URI: http://keycloak:8080/realms/truongsonbank
+      AUTH_KEYCLOAK_JWKS_URI: http://keycloak:8080/realms/truongsonbank/protocol/openid-connect/certs
 
   core:
     build:
@@ -74,7 +82,19 @@ services:
       CORE_DB_NAME: coredb
       SPRING_DATA_REDIS_HOST: redis
       T29_BASE_URL: http://t29:8087
+      TSB_SHARED_INTERNAL_AUTH_HMAC_SECRET: local-dev-secret
       TSB_SHARED_TRACING_OTLP_ENDPOINT: http://otel-collector:4317
+      TSB_SHARED_TRACING_IDENTITY_ENABLED: ${TSB_SHARED_TRACING_IDENTITY_ENABLED:-true}
+      TSB_SHARED_TRACING_IDENTITY_RAW_VALUES: ${TSB_SHARED_TRACING_IDENTITY_RAW_VALUES:-false}
+      TSB_SHARED_TRACING_IDENTITY_HASH_KEY: ${TSB_SHARED_TRACING_IDENTITY_HASH_KEY:-tsb-local-trace-identity-key}
+      TSB_CORE_SERVICE_AUTH_ENABLED: "true"
+      TSB_CORE_SERVICE_PERMISSION_RESOLVER_ENABLED: "true"
+      TSB_CORE_SERVICE_CLIENT_ID: core-service
+      TSB_CORE_SERVICE_CLIENT_SECRET: local-core-service-secret
+      COMMON_BASE_URL: http://common:8083/common/api
+      TSB_SERVICE_TOKEN_URI: http://keycloak:8080/realms/truongsonbank/protocol/openid-connect/token
+      AUTH_KEYCLOAK_INTERNAL_ISSUER_URI: http://keycloak:8080/realms/truongsonbank
+      AUTH_KEYCLOAK_JWKS_URI: http://keycloak:8080/realms/truongsonbank/protocol/openid-connect/certs
 
   t29:
     build:
@@ -105,8 +125,15 @@ services:
       COMMON_DB_NAME: entitlementdb
       SPRING_DATA_REDIS_HOST: redis
       TSB_SHARED_TRACING_OTLP_ENDPOINT: http://otel-collector:4317
+      TSB_SHARED_TRACING_IDENTITY_ENABLED: ${TSB_SHARED_TRACING_IDENTITY_ENABLED:-true}
+      TSB_SHARED_TRACING_IDENTITY_RAW_VALUES: ${TSB_SHARED_TRACING_IDENTITY_RAW_VALUES:-false}
+      TSB_SHARED_TRACING_IDENTITY_HASH_KEY: ${TSB_SHARED_TRACING_IDENTITY_HASH_KEY:-tsb-local-trace-identity-key}
       COMMON_CONFIG_ADMIN_API_KEY: local-admin-key
       CLIENT_CONFIG_API_KEY: local-config-key
+      COMMON_ENTITLEMENT_REDIS_CHANNEL: tsb:entitlement:changed
+      TSB_COMMON_SERVICE_AUTH_ENABLED: "true"
+      AUTH_KEYCLOAK_INTERNAL_ISSUER_URI: http://keycloak:8080/realms/truongsonbank
+      AUTH_KEYCLOAK_JWKS_URI: http://keycloak:8080/realms/truongsonbank/protocol/openid-connect/certs
 
   keycloak:
     build:
@@ -164,6 +191,9 @@ services:
       AUTH_DB_NAME: authdb
       SPRING_DATA_REDIS_HOST: redis
       TSB_SHARED_TRACING_OTLP_ENDPOINT: http://otel-collector:4317
+      TSB_SHARED_TRACING_IDENTITY_ENABLED: ${TSB_SHARED_TRACING_IDENTITY_ENABLED:-true}
+      TSB_SHARED_TRACING_IDENTITY_RAW_VALUES: ${TSB_SHARED_TRACING_IDENTITY_RAW_VALUES:-false}
+      TSB_SHARED_TRACING_IDENTITY_HASH_KEY: ${TSB_SHARED_TRACING_IDENTITY_HASH_KEY:-tsb-local-trace-identity-key}
       AUTH_KEYCLOAK_TOKEN_URI: http://keycloak:8080/realms/truongsonbank/protocol/openid-connect/token
       AUTH_KEYCLOAK_ADMIN_BASE_URL: http://keycloak:8080
       AUTH_KEYCLOAK_ISSUER_URI: http://localhost:8088/realms/truongsonbank
@@ -185,6 +215,8 @@ services:
         condition: service_started
       common:
         condition: service_started
+      core:
+        condition: service_started
       redis:
         condition: service_started
       consul:
@@ -198,43 +230,28 @@ services:
       SERVER_PORT: 8080
       SPRING_DATA_REDIS_HOST: redis
       TSB_SHARED_TRACING_OTLP_ENDPOINT: http://otel-collector:4317
+      TSB_SHARED_TRACING_IDENTITY_ENABLED: ${TSB_SHARED_TRACING_IDENTITY_ENABLED:-true}
+      TSB_SHARED_TRACING_IDENTITY_RAW_VALUES: ${TSB_SHARED_TRACING_IDENTITY_RAW_VALUES:-false}
+      TSB_SHARED_TRACING_IDENTITY_HASH_KEY: ${TSB_SHARED_TRACING_IDENTITY_HASH_KEY:-tsb-local-trace-identity-key}
       TSB_SHARED_PROTOCOL_DISCOVERY_CONSUL_URL: http://consul:8500
       TSB_SHARED_PROTOCOL_DOWNSTREAMS_COMMON_BASE_URL: http://common:8083/common/api
       TSB_SHARED_PROTOCOL_DOWNSTREAMS_CLIENT_BASE_URL: http://client:8081
       TSB_SHARED_PROTOCOL_DOWNSTREAMS_AUTH_BASE_URL: http://auth:8084/auth/api
+      TSB_BFF_COMMON_SERVICE_AUTH_ENABLED: "true"
+      TSB_BFF_CORE_SERVICE_AUTH_ENABLED: "true"
+      TSB_BFF_CLIENT_SERVICE_AUTH_ENABLED: "true"
+      TSB_BFF_SERVICE_CLIENT_ID: bff-service
+      TSB_BFF_SERVICE_CLIENT_SECRET: local-bff-service-secret
+      TSB_SERVICE_TOKEN_URI: http://keycloak:8080/realms/truongsonbank/protocol/openid-connect/token
       TSB_SHARED_INTERNAL_AUTH_HMAC_SECRET: local-dev-secret
       BFF_ENTITLEMENT_COMMON_URL: http://common:8083/common/api
       BFF_ENTITLEMENT_ADMIN_KEY: local-admin-key
+      BFF_ENTITLEMENT_REDIS_CHANNEL: tsb:entitlement:changed
       BFF_ROUTE_CLIENT_URI: http://client:8081
       BFF_ROUTE_COMMON_URI: http://common:8083
       BFF_ROUTE_AUTH_URI: http://auth:8084
-      BFF_AUTH_BASE_URL: http://auth:8084/auth/api
-      AUTH_ONBOARDING_INTERNAL_SECRET: local-onboarding-secret
-
-  client2:
-    build:
-      context: ../client2
-    container_name: tsb-client2
-    depends_on:
-      kafka:
-        condition: service_started
-      redis:
-        condition: service_started
-      consul:
-        condition: service_started
-      otel-collector:
-        condition: service_started
-    restart: on-failure
-    ports:
-      - "8082:8082"
-      - "19093:9092"
-    environment:
-      SERVER_PORT: 8082
-      SPRING_DATA_REDIS_HOST: redis
-      TSB_SHARED_TRACING_OTLP_ENDPOINT: http://otel-collector:4317
-      TSB_SHARED_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      TSB_SHARED_KAFKA_CLIENT_ID: client2
-      TSB_SHARED_KAFKA_GROUP_ID: client2
+      BFF_ROUTE_CORE_URI: http://core:8085
+      BFF_SESSION_REDIS_KEY_PREFIX: "tsb:auth:session:"
 
   consul:
     image: hashicorp/consul:1.20

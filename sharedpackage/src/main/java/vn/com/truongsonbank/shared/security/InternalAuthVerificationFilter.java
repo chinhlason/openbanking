@@ -4,8 +4,12 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.web.filter.OncePerRequestFilter;
 import vn.com.truongsonbank.shared.exception.TsbException;
+import vn.com.truongsonbank.shared.response.TsbResponse;
+import vn.com.truongsonbank.shared.response.TraceIdProvider;
+import vn.com.truongsonbank.shared.tracing.TraceIdentityEnricher;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -19,14 +23,23 @@ public class InternalAuthVerificationFilter extends OncePerRequestFilter {
     private final InternalAuthProperties properties;
     private final InternalAuthSecretProvider secretProvider;
     private final InternalAuthNonceStore nonceStore;
+    private final TraceIdProvider traceIdProvider;
+    private final TraceIdentityEnricher traceIdentityEnricher;
+    private final ObjectMapper objectMapper;
 
     InternalAuthVerificationFilter(
             InternalAuthProperties properties,
             InternalAuthSecretProvider secretProvider,
-            InternalAuthNonceStore nonceStore) {
+            InternalAuthNonceStore nonceStore,
+            TraceIdProvider traceIdProvider,
+            TraceIdentityEnricher traceIdentityEnricher,
+            ObjectMapper objectMapper) {
         this.properties = properties;
         this.secretProvider = secretProvider;
         this.nonceStore = nonceStore;
+        this.traceIdProvider = traceIdProvider;
+        this.traceIdentityEnricher = traceIdentityEnricher;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -39,11 +52,34 @@ public class InternalAuthVerificationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         try {
-            AuthContextHolder.set(verify(request));
+            AuthContext context = verify(request);
+            AuthContextHolder.set(context);
+            traceIdentityEnricher.enrich(context.userId(), context.customerId());
             filterChain.doFilter(request, response);
+        } catch (TsbException exception) {
+            writeError(request, response, exception);
         } finally {
             AuthContextHolder.clear();
         }
+    }
+
+    private void writeError(HttpServletRequest request, HttpServletResponse response, TsbException exception)
+            throws IOException {
+        String traceId = traceIdProvider.resolve(request);
+        response.setStatus(exception.error().httpStatus());
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
+        if (traceId != null && !traceId.isBlank()) {
+            response.setHeader("X-Trace-Id", traceId);
+        }
+        objectMapper.writeValue(response.getWriter(), new TsbResponse<>(
+                traceId,
+                false,
+                exception.error().code(),
+                exception.error().defaultMessage(),
+                null,
+                java.time.Instant.now(),
+                null));
     }
 
     private AuthContext verify(HttpServletRequest request) {

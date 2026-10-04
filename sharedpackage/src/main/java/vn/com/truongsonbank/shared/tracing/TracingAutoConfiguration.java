@@ -67,6 +67,12 @@ public class TracingAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    TraceIdentityEnricher traceIdentityEnricher(Tracer tracer, TracingProperties properties) {
+        return new TraceIdentityEnricher(tracer, properties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     Propagator propagator(OpenTelemetry openTelemetry) {
         return new OtelPropagator(openTelemetry.getPropagators(), openTelemetry.getTracer(INSTRUMENTATION_NAME));
     }

@@ -61,8 +61,10 @@ public class TsbProtocolAutoConfiguration {
             TsbProtocolInstrumentation instrumentation,
             TsbCircuitBreakerRegistry circuitBreakers,
             ObjectProvider<Tracer> tracer,
-            ObjectProvider<AuthHeaderSigner> authHeaderSigner) {
-        return new TsbProtocolClientHttpRequestInterceptor(policyResolver, instrumentation, circuitBreakers, tracer, authHeaderSigner);
+            ObjectProvider<AuthHeaderSigner> authHeaderSigner,
+            ObjectProvider<vn.com.truongsonbank.shared.security.ServiceTokenManager> serviceTokenManager) {
+        return new TsbProtocolClientHttpRequestInterceptor(policyResolver, instrumentation, circuitBreakers, tracer,
+                authHeaderSigner, serviceTokenManager);
     }
 
     @Bean
@@ -80,8 +82,9 @@ public class TsbProtocolAutoConfiguration {
     @ConditionalOnClass(ManagedChannelBuilder.class)
     TsbGrpcClientInterceptor tsbGrpcClientInterceptor(
             TsbProtocolPolicyResolver policyResolver,
-            ObjectProvider<Tracer> tracer) {
-        return new TsbGrpcClientInterceptor(policyResolver, tracer);
+            ObjectProvider<Tracer> tracer,
+            ObjectProvider<vn.com.truongsonbank.shared.security.ServiceTokenManager> serviceTokenManager) {
+        return new TsbGrpcClientInterceptor(policyResolver, tracer, serviceTokenManager);
     }
 
     @Bean

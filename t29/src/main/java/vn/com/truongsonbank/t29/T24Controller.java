@@ -10,19 +10,35 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 class T24Controller {
-    private final AtomicLong accountSequence = new AtomicLong(290000000000L);
+    private static final long ACCOUNT_NUMBER_BASE = 290000000000L;
+    private static final long ACCOUNT_NUMBER_RANGE = 100000000L;
+
+    // T29 is an in-memory test double. Start each process in a time-based range
+    // so a container restart cannot reuse numbers already persisted by Core.
+    private final AtomicLong accountSequence = new AtomicLong(
+            ACCOUNT_NUMBER_BASE + (System.currentTimeMillis() % ACCOUNT_NUMBER_RANGE));
     private final Map<String, Account> accounts = new HashMap<>();
     private final Map<String, String> accountsByCccd = new HashMap<>();
+    private final Map<String, String> accountsByIdempotencyKey = new HashMap<>();
 
     @PostMapping("/accounts")
-    synchronized OpenAccountResponse openAccount(@RequestBody OpenAccountRequest request) {
+    synchronized OpenAccountResponse openAccount(
+            @RequestHeader(name = "X-Idempotency-Key", required = false) String idempotencyKey,
+            @RequestBody OpenAccountRequest request) {
         if (request.cccd() == null || request.cccd().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "cccd is required");
+        }
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            String existing = accountsByIdempotencyKey.get(idempotencyKey);
+            if (existing != null) {
+                return new OpenAccountResponse(existing);
+            }
         }
 
         String accountNumber = accountsByCccd.computeIfAbsent(request.cccd(), cccd -> {
@@ -30,6 +46,9 @@ class T24Controller {
             accounts.put(nextAccountNumber, new Account(nextAccountNumber, cccd, BigDecimal.ZERO));
             return nextAccountNumber;
         });
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            accountsByIdempotencyKey.put(idempotencyKey, accountNumber);
+        }
 
         return new OpenAccountResponse(accountNumber);
     }

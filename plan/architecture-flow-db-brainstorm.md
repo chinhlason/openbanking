@@ -4,62 +4,62 @@ Status: draft, not approved.
 
 ## 1. Current Context
 
-Repo hiện có các Spring Boot module:
+The repo currently has these Spring Boot modules:
 
-- `auth`: xác thực/định danh người dùng.
-- `bff`: API gateway/BFF cho mobile/web.
-- `client`: quản lý khách hàng/người dùng ngân hàng.
-- `core`: nghiệp vụ chính như transfer, payment.
-- `t29`: mock core banking/T24, hiện lưu account theo CCCD và balance trong RAM.
-- `common`, `sharedpackage`: dùng chung, hiện chưa có contract rõ.
-- `mobileapp`, `portal`: đang trống.
+- `auth`: user authentication/identity.
+- `bff`: API gateway/BFF for mobile/web.
+- `client`: manages bank customers/users.
+- `core`: main business capabilities such as transfer and payment.
+- `t29`: mock core banking/T24, currently storing accounts by CCCD and balances in RAM.
+- `common`, `sharedpackage`: shared modules, currently without a clear contract.
+- `mobileapp`, `portal`: currently empty.
 
-Hiện code gần như skeleton. Vì vậy kiến trúc nên chốt từ use case và boundary trước, chưa nên thêm framework/dependency ngoài nhu cầu thật.
+The code is currently close to a skeleton. Therefore the architecture should be finalized from use cases and boundaries first, and should not add frameworks/dependencies beyond real needs yet.
 
 ## 2. Priority Blocks
 
 ### P0 - Core Money Flow
 
-Mục tiêu: chạy được luồng mở tài khoản, xem số dư, transfer/payment.
+Goal: run the open-account, balance inquiry, and transfer/payment flows.
 
-Khối:
+Blocks:
 
-- `t29`: source of truth tạm thời cho account và balance.
-- `core`: nhận lệnh chuyển tiền/thanh toán, validate nghiệp vụ, gọi `t29`.
-- `bff`: expose API cho client/mobile.
+- `t29`: temporary source of truth for accounts and balances.
+- `core`: receives transfer/payment commands, validates business rules, calls `t29`.
+- `bff`: exposes APIs for client/mobile.
 
-Lý do làm trước: đây là trục sống của dự án. Auth/portal/report đẹp đến đâu mà tiền không chạy thì hệ thống chưa có lõi.
+Reason to do this first: this is the backbone of the project. No matter how polished auth/portal/reporting are, if money does not move, the system does not have its core yet.
 
 ### P1 - Identity/Auth
 
-Mục tiêu: đăng nhập, định danh user, map user với CCCD/customer.
+Goal: login, identify the user, and map the user to CCCD/customer.
 
-Khối:
+Blocks:
 
 - `auth`: login, token, role.
-- `client`: hồ sơ khách hàng, CCCD, trạng thái KYC đơn giản.
-- `bff`: kiểm tra token trước khi gọi core.
+- `client`: customer profile, CCCD, simple KYC status.
+- `bff`: checks the token before calling core.
 
-Lý do làm sau P0: để P0 chạy nhanh bằng mock header/user id trước, rồi gắn auth thật khi flow tiền ổn.
+Reason to do this after P0: let P0 run quickly with a mock header/user id first, then attach real auth once the money flow is stable.
 
 ### P2 - Persistence + Audit
 
-Mục tiêu: dữ liệu không mất sau restart, có lịch sử giao dịch.
+Goal: data survives restarts and transaction history exists.
 
-Khối:
+Blocks:
 
-- DB cho `core`: transaction/payment/order state.
-- DB cho `client`: customer profile.
-- DB cho `auth`: user/credential/session nếu không dùng provider ngoài.
-- DB hoặc in-memory cho `t29` tùy mức giả lập.
+- DB for `core`: transaction/payment/order state.
+- DB for `client`: customer profile.
+- DB for `auth`: user/credential/session if no external provider is used.
+- DB or in-memory for `t29` depending on the simulation level.
 
-Lý do: cần trước UAT, chưa bắt buộc cho demo RAM.
+Reason: needed before UAT, not mandatory for a RAM-only demo.
 
 ### P3 - Operations
 
-Mục tiêu: dễ chạy, dễ debug.
+Goal: easy to run and debug.
 
-Khối:
+Blocks:
 
 - Docker compose/local env.
 - Logging/correlation id.
@@ -70,56 +70,56 @@ Khối:
 
 ### Option A - Modular Microservices, Minimal
 
-Mỗi module Spring Boot chạy riêng:
+Each Spring Boot module runs separately:
 
-- `bff` gọi `auth`, `client`, `core`.
-- `core` gọi `t29`.
-- Mỗi service có DB riêng khi cần.
+- `bff` calls `auth`, `client`, `core`.
+- `core` calls `t29`.
+- Each service has its own DB when needed.
 
 Pros:
 
-- Khớp structure repo hiện tại.
-- Boundary rõ, dễ demo kiến trúc ngân hàng.
-- Có thể thay `t29` mock bằng core banking thật.
+- Matches the current repo structure.
+- Clear boundaries, easy to demo banking architecture.
+- Can replace the `t29` mock with real core banking.
 
 Cons:
 
-- Nhiều process hơn.
-- Cần quản lý config/port/API contract.
+- More processes.
+- Need to manage config/ports/API contracts.
 
-Recommendation: chọn hướng này, nhưng triển khai tối giản.
+Recommendation: choose this direction, but implement it minimally.
 
 ### Option B - Single Backend First
 
-Gộp nghiệp vụ vào một app backend, `t29` chỉ là class/mock nội bộ.
+Merge business logic into one backend app; `t29` is only an internal class/mock.
 
 Pros:
 
-- Ít service, nhanh code.
-- Ít lỗi network/config.
+- Fewer services, faster to code.
+- Fewer network/config errors.
 
 Cons:
 
-- Lệch structure repo hiện tại.
-- Sau này tách service sẽ tốn công.
+- Deviates from the current repo structure.
+- Splitting services later will be costly.
 
-Use when: mục tiêu chỉ là demo nhanh, không cần thể hiện kiến trúc hệ thống.
+Use when: the goal is only a quick demo and does not need to show system architecture.
 
 ### Option C - Event-Driven
 
-Transfer/payment phát event, worker xử lý async, có outbox/message broker.
+Transfer/payment publishes events, workers process asynchronously, with outbox/message broker.
 
 Pros:
 
-- Gần production hơn cho payment.
-- Dễ audit/retry.
+- Closer to production for payment.
+- Easier audit/retry.
 
 Cons:
 
-- Quá nặng cho giai đoạn hiện tại.
-- Cần broker, outbox, idempotency, trạng thái phức tạp.
+- Too heavy for the current stage.
+- Requires broker, outbox, idempotency and complex states.
 
-Use when: cần xử lý async thật, volume cao, hoặc tích hợp nhiều hệ thống ngoài.
+Use when: real async processing, high volume, or integration with many external systems is needed.
 
 ## 4. Recommended High-Level Architecture
 
@@ -260,4 +260,3 @@ Need to clear before final architecture:
 4. Finalize use case flows.
 5. Finalize DB schema.
 6. Break implementation into small tasks.
-

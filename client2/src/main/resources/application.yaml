@@ -27,6 +27,10 @@ tsb:
       service-name: client2
       otlp-endpoint: ${TSB_SHARED_TRACING_OTLP_ENDPOINT:http://localhost:4317}
       export-timeout: 5s
+      identity:
+        enabled: ${TSB_SHARED_TRACING_IDENTITY_ENABLED:true}
+        raw-values: ${TSB_SHARED_TRACING_IDENTITY_RAW_VALUES:false}
+        hash-key: ${TSB_SHARED_TRACING_IDENTITY_HASH_KEY:tsb-local-trace-identity-key}
     kafka:
       bootstrap-servers:
         - ${TSB_SHARED_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
@@ -43,7 +47,7 @@ tsb:
     logging:
       request:
         enabled: true
-        include-headers: false
+        include-headers: true
         include-query-string: true
         include-body: true
         max-body-length: 4096

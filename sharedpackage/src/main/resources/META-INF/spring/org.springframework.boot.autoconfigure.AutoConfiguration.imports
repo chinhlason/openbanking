@@ -5,6 +5,7 @@ vn.com.truongsonbank.shared.logging.LoggingAutoConfiguration
 vn.com.truongsonbank.shared.tracing.TracingAutoConfiguration
 vn.com.truongsonbank.shared.config.TsbCommonConfigAutoConfiguration
 vn.com.truongsonbank.shared.security.InternalAuthAutoConfiguration
+vn.com.truongsonbank.shared.security.ServiceAuthAutoConfiguration
 vn.com.truongsonbank.shared.cache.CacheAutoConfiguration
 vn.com.truongsonbank.shared.protocol.TsbProtocolAutoConfiguration
 vn.com.truongsonbank.shared.kafka.KafkaAutoConfiguration

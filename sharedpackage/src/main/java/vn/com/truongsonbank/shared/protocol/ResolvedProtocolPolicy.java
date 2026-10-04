@@ -46,6 +46,10 @@ class ResolvedProtocolPolicy {
         return object(ProtocolProperties.Policy::getLog, new ProtocolProperties.OutboundLog());
     }
 
+    ProtocolProperties.ServiceAuth serviceAuth() {
+        return object(ProtocolProperties.Policy::getServiceAuth, new ProtocolProperties.ServiceAuth());
+    }
+
     private Duration duration(ValueGetter<Duration> getter) {
         Duration value = operationPolicy == null ? null : getter.get(operationPolicy);
         if (value != null) {

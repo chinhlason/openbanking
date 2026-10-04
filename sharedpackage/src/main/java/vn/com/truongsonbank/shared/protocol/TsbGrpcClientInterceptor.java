@@ -17,6 +17,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import vn.com.truongsonbank.shared.security.ServiceTokenManager;
 
 class TsbGrpcClientInterceptor {
     private static final Metadata.Key<String> TRACEPARENT =
@@ -26,10 +27,13 @@ class TsbGrpcClientInterceptor {
 
     private final TsbProtocolPolicyResolver policyResolver;
     private final ObjectProvider<Tracer> tracer;
+    private final ObjectProvider<ServiceTokenManager> serviceTokenManager;
 
-    TsbGrpcClientInterceptor(TsbProtocolPolicyResolver policyResolver, ObjectProvider<Tracer> tracer) {
+    TsbGrpcClientInterceptor(TsbProtocolPolicyResolver policyResolver, ObjectProvider<Tracer> tracer,
+                             ObjectProvider<ServiceTokenManager> serviceTokenManager) {
         this.policyResolver = policyResolver;
         this.tracer = tracer;
+        this.serviceTokenManager = serviceTokenManager;
     }
 
     ClientInterceptor forDownstream(String downstream) {
@@ -58,7 +62,7 @@ class TsbGrpcClientInterceptor {
             @Override
             public void start(Listener<RespT> responseListener, Metadata headers) {
                 span = startSpan(downstream, operation);
-                propagate(headers);
+                propagate(headers, downstream, operation);
                 super.start(new ForwardingClientCallListener.SimpleForwardingClientCallListener<>(responseListener) {
                     @Override
                     public void onClose(io.grpc.Status status, Metadata trailers) {
@@ -72,7 +76,7 @@ class TsbGrpcClientInterceptor {
         };
     }
 
-    private void propagate(Metadata headers) {
+    private void propagate(Metadata headers, String downstream, String operation) {
         Tracer currentTracer = tracer.getIfAvailable();
         Span span = currentTracer == null ? null : currentTracer.currentSpan();
         if (span != null && !headers.containsKey(TRACEPARENT)) {
@@ -81,6 +85,13 @@ class TsbGrpcClientInterceptor {
         String idempotencyKey = inboundHeader("Idempotency-Key");
         if (idempotencyKey != null && !headers.containsKey(IDEMPOTENCY_KEY)) {
             headers.put(IDEMPOTENCY_KEY, idempotencyKey);
+        }
+        ProtocolProperties.ServiceAuth auth = policyResolver.resolve(downstream, operation).serviceAuth();
+        if (auth.isEnabled()) {
+            ServiceTokenManager manager = serviceTokenManager.getIfAvailable();
+            if (manager == null) throw new vn.com.truongsonbank.shared.exception.TsbException(vn.com.truongsonbank.shared.security.ServiceAuthErrors.TOKEN_FETCH_FAILED);
+            headers.put(Metadata.Key.of("authorization", Metadata.ASCII_STRING_MARSHALLER),
+                    "Bearer " + manager.getToken(auth));
         }
     }
 

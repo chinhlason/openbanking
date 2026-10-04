@@ -84,7 +84,7 @@ tsb:
     logging:
       request:
         enabled: true
-        include-headers: false
+        include-headers: true
         include-query-string: true
         include-body: true
         max-body-length: 4096

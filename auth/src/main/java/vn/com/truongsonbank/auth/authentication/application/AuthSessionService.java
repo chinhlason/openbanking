@@ -22,6 +22,7 @@ import vn.com.truongsonbank.auth.authentication.infrastructure.persistence.AuthS
 import vn.com.truongsonbank.auth.authentication.infrastructure.security.DpopProofVerifier;
 import vn.com.truongsonbank.shared.exception.UnauthorizedException;
 import vn.com.truongsonbank.shared.response.TsbResponse;
+import vn.com.truongsonbank.shared.tracing.TraceIdentityEnricher;
 
 import java.security.SecureRandom;
 import java.time.Instant;
@@ -41,6 +42,7 @@ public class AuthSessionService {
     private final DpopProofVerifier dpopProofVerifier;
     private final AuthCustomerIdentityRepository identityRepository;
     private final RestClient common;
+    private final TraceIdentityEnricher traceIdentityEnricher;
 
     AuthSessionService(StringRedisTemplate redis,
                        ObjectMapper objectMapper,
@@ -48,7 +50,8 @@ public class AuthSessionService {
                        AuthDeviceRepository deviceRepository,
                        AuthSessionRepository sessionRepository,
                        DpopProofVerifier dpopProofVerifier,
-                       AuthCustomerIdentityRepository identityRepository) {
+                       AuthCustomerIdentityRepository identityRepository,
+                       TraceIdentityEnricher traceIdentityEnricher) {
         this.redis = redis;
         this.objectMapper = objectMapper;
         this.properties = properties;
@@ -57,6 +60,7 @@ public class AuthSessionService {
         this.dpopProofVerifier = dpopProofVerifier;
         this.identityRepository = identityRepository;
         this.common = RestClient.builder().baseUrl(properties.getCommonBaseUrl()).build();
+        this.traceIdentityEnricher = traceIdentityEnricher;
     }
 
     public SessionResponse create(Jwt jwt, DeviceRequest deviceRequest, String dpopJkt) {
@@ -81,6 +85,7 @@ public class AuthSessionService {
         );
         saveSessionRow(session);
         saveRedisSession(session);
+        traceIdentityEnricher.enrich(session.subject(), session.customerId());
         return toResponse(session);
     }
 
@@ -111,6 +116,7 @@ public class AuthSessionService {
         );
         saveSessionRow(session);
         saveRedisSession(session);
+        traceIdentityEnricher.enrich(session.subject(), session.customerId());
         return toResponse(session);
     }
 

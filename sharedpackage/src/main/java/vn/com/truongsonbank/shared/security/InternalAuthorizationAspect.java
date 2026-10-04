@@ -15,18 +15,34 @@ import java.util.Set;
 class InternalAuthorizationAspect {
     @Around("@within(vn.com.truongsonbank.shared.security.RequireRole) || @annotation(vn.com.truongsonbank.shared.security.RequireRole) || "
             + "@within(vn.com.truongsonbank.shared.security.RequireScope) || @annotation(vn.com.truongsonbank.shared.security.RequireScope) || "
-            + "@within(vn.com.truongsonbank.shared.security.RequireEntitlement) || @annotation(vn.com.truongsonbank.shared.security.RequireEntitlement)")
+            + "@within(vn.com.truongsonbank.shared.security.RequireEntitlement) || @annotation(vn.com.truongsonbank.shared.security.RequireEntitlement) || "
+            + "@within(vn.com.truongsonbank.shared.security.RequireServicePermission) || @annotation(vn.com.truongsonbank.shared.security.RequireServicePermission)")
     public Object authorize(ProceedingJoinPoint joinPoint) throws Throwable {
         Method method = ((MethodSignature) joinPoint.getSignature()).getMethod();
         Class<?> type = joinPoint.getTarget().getClass();
-        AuthContext context = AuthContextHolder.current()
-                .orElseThrow(() -> new TsbException(InternalAuthErrors.MISSING));
+        AuthContext context = AuthContextHolder.current().orElse(null);
         RequireRole role = first(AnnotatedElementUtils.findMergedAnnotation(method, RequireRole.class),
                 AnnotatedElementUtils.findMergedAnnotation(type, RequireRole.class));
         RequireScope scope = first(AnnotatedElementUtils.findMergedAnnotation(method, RequireScope.class),
                 AnnotatedElementUtils.findMergedAnnotation(type, RequireScope.class));
         RequireEntitlement entitlement = first(AnnotatedElementUtils.findMergedAnnotation(method, RequireEntitlement.class),
                 AnnotatedElementUtils.findMergedAnnotation(type, RequireEntitlement.class));
+        RequireServicePermission servicePermission = first(AnnotatedElementUtils.findMergedAnnotation(method, RequireServicePermission.class),
+                AnnotatedElementUtils.findMergedAnnotation(type, RequireServicePermission.class));
+        if (servicePermission != null) {
+            ServicePrincipal principal = ServiceSecurityContextHolder.current()
+                    .orElseThrow(() -> new TsbException(ServiceAuthErrors.MISSING));
+            ServicePermissionResolver resolver = resolver();
+            if (!resolver.resolve(principal.serviceCode()).matches(servicePermission.value(), servicePermission.mode())) {
+                throw new TsbException(ServiceAuthErrors.PERMISSION_DENIED);
+            }
+        }
+        if (role == null && scope == null && entitlement == null) {
+            return joinPoint.proceed();
+        }
+        if (context == null) {
+            throw new TsbException(InternalAuthErrors.MISSING);
+        }
         if (role != null && !matches(context.roles(), role.value(), role.mode())) {
             throw new TsbException(InternalAuthErrors.FORBIDDEN);
         }
@@ -37,6 +53,14 @@ class InternalAuthorizationAspect {
             throw new TsbException(InternalAuthErrors.FORBIDDEN);
         }
         return joinPoint.proceed();
+    }
+
+    private ServicePermissionResolver resolver() {
+        ServicePermissionResolver resolver = ServiceAuthBeans.RESOLVER.get();
+        if (resolver == null) {
+            throw new TsbException(ServiceAuthErrors.PERMISSION_UNAVAILABLE);
+        }
+        return resolver;
     }
 
     private <T> T first(T method, T type) {

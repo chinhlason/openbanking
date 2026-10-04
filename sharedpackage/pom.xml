@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>vn.com.truongsonbank</groupId>
 	<artifactId>sharedpackage</artifactId>
-	<version>0.0.38-SNAPSHOT</version>
+	<version>0.0.39-SNAPSHOT</version>
 	<name>sharedpackage</name>
 	<description>sharedpackage</description>
 	<url/>
@@ -34,6 +34,11 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-oauth2-jose</artifactId>
 		</dependency>
 
 		<dependency>
@@ -119,6 +124,11 @@
 		<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>
 			<artifactId>jackson-databind</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>com.fasterxml.jackson.datatype</groupId>
+			<artifactId>jackson-datatype-jsr310</artifactId>
 		</dependency>
 
 		<dependency>

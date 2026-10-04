@@ -13,4 +13,5 @@ public class CoreProperties {
     public void setT29BaseUrl(String t29BaseUrl) {
         this.t29BaseUrl = t29BaseUrl;
     }
+
 }

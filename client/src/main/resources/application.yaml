@@ -61,6 +61,18 @@ tsb:
       enabled: true
       channel: tsb:config:changed
   shared:
+    security:
+      service-auth:
+        enabled: ${TSB_CLIENT_SERVICE_AUTH_ENABLED:false}
+        service-code: client-service
+        issuer-uri: ${AUTH_KEYCLOAK_INTERNAL_ISSUER_URI:http://localhost:8088/realms/truongsonbank}
+        jwk-set-uri: ${AUTH_KEYCLOAK_JWKS_URI:http://localhost:8088/realms/truongsonbank/protocol/openid-connect/certs}
+        expected-audience: client-service
+        excluded-paths:
+          - /actuator
+          - /v3/api-docs
+          - /swagger-ui
+          - /swagger-ui.html
     internal-auth:
       enabled: true
       signer-enabled: false
@@ -79,6 +91,10 @@ tsb:
       service-name: client
       otlp-endpoint: ${TSB_SHARED_TRACING_OTLP_ENDPOINT:http://localhost:4317}
       export-timeout: 5s
+      identity:
+        enabled: ${TSB_SHARED_TRACING_IDENTITY_ENABLED:true}
+        raw-values: ${TSB_SHARED_TRACING_IDENTITY_RAW_VALUES:false}
+        hash-key: ${TSB_SHARED_TRACING_IDENTITY_HASH_KEY:tsb-local-trace-identity-key}
     kafka:
       bootstrap-servers:
         - ${TSB_SHARED_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
@@ -183,6 +199,16 @@ tsb:
           port: 8081
           health-path: /actuator/health
       downstreams:
+        core:
+          base-url: ${CORE_BASE_URL:http://localhost:8085}
+          service-auth:
+            enabled: ${TSB_CLIENT_CORE_SERVICE_AUTH_ENABLED:false}
+            client-id: ${TSB_CLIENT_SERVICE_CLIENT_ID:client-service}
+            client-secret: ${TSB_CLIENT_SERVICE_CLIENT_SECRET:local-client-service-secret}
+            token-uri: ${TSB_SERVICE_TOKEN_URI:http://localhost:8088/realms/truongsonbank/protocol/openid-connect/token}
+            audience: core-service
+            token-refresh-skew: 30s
+            retry-on-unauthorized-once: true
         client-self:
           base-url: http://localhost:8081
         client2:

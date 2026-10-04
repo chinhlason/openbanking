@@ -33,6 +33,14 @@ public class EntitlementController {
         return service.get(type, id);
     }
 
+    @GetMapping("/internal/subjects/{type}/{id}/operations")
+    Map<String, Object> resolveInternal(@PathVariable String type, @PathVariable String id) {
+        if (!"SERVICE".equalsIgnoreCase(type)) {
+            throw new TsbException(EntitlementErrors.REQUEST_INVALID);
+        }
+        return service.resolveService(id);
+    }
+
     @PostMapping("/subjects/{type}/{id}")
     Map<String, Object> upsert(@PathVariable String type, @PathVariable String id,
                                @RequestHeader("X-Config-Admin-Key") String adminKey,
