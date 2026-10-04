@@ -5,6 +5,8 @@ hexagonal architecture và production-like infrastructure. Repo gồm backend
 services, shared platform package, native iOS app, operations portal và hạ tầng
 quan sát hệ thống.
 
+[English version](README.en.md)
+
 > Đây là môi trường phát triển và kiểm thử. Secret, Keycloak realm, T29 và một
 > số third-party provider hiện là cấu hình/mock local, chưa phải production.
 
@@ -464,4 +466,3 @@ Các design và implementation plan nằm trong [plan](plan/):
 
 Khi behavior thay đổi, cập nhật README và plan liên quan cùng một change để người
 triển khai không phải suy đoán từ code hoặc compose file.
-

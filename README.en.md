@@ -5,6 +5,8 @@ microservices, hexagonal architecture, and production-like infrastructure. The
 repository contains backend services, a shared platform package, a native iOS
 application, an operations portal, and local observability infrastructure.
 
+[Phiên bản tiếng Việt](README.md)
+
 > This repository is for development and testing. Secrets, the Keycloak realm,
 > T29, and several third-party providers are local/demo implementations and are
 > not production-ready defaults.
@@ -463,4 +465,3 @@ Design and implementation plans are in [plan](plan/):
 - [sharedpackage-sharding-design.md](plan/sharedpackage-sharding-design.md)
 
 Keep this file and the Vietnamese README aligned when runtime behavior changes.
-
